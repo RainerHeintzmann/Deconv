@@ -1,0 +1,483 @@
+% [aRecon]=GenericDeconvolution(image,psf,NumIter,Method,Update,lambda,Prior,NegPrior,betas,borderSizes,Variances,useCuda) : ML-Deconvolution routine using various approaches
+% image: Image to Deconvolve
+% psf: Point spread function to deconvolve with
+% NumIter: Iterations to perform. Optionally the subiterations for initial Object iterations (2) and successive object (3) and illumination iterations (4) can be given.
+% Method: One of 'LeastSqr', 'WeightedLeastSqr' and 'Poisson', defining the norm of the data-simulation agreement to optimize
+% Update: Default: [] uses 'lbfgs', This describes the minimization algorithm (update scheme) to use. You can use all the ones that minFunc allows, but in addition also 'RL' for
+% RichardsonLucy multiplicative (EM) Algorithm, or 'RLL' for a Wolfe line search along the Richardson Lucy update direction
+% lambda: relative weight of regularisation term
+% Prior: One of 'NONE' (no regularisation), 'GR' (Good's roughness penalty), 'AR' (Arigovindan's Entropy Regularisation), 'TV' (total variation)
+% NegPrior: One of 'NONE' (no penalty for negative object values), 'NegSqr' (Square penalty for negative values)
+% betas: Vector of beta values to vary the weight of different directions (e.g. anisotropic sampling). This should correspond to pixelsizes, for example normalized to the x-pixel size
+% or optical resolution
+% borderSizes: If given, the reconstruction is done over an extended area, but the non-existing data there is assumed to be always correct (useful especially for widefield data)
+%              Note that you can also give a boolean map here, which notes which of the data is valid.
+% Variances: this is useful to give a map of expected variance (when using the 'LeastSqr' method)
+% useCuda: This can accelerate the reconstruction significantly (the CudaMat toolbox by Rainer Heintzmann has to be installed)
+%
+% Requires: DipImage and Mark Schmid's minFunc (http://www.cs.ubc.ca/~schmidtm/Software/minFunc.html).
+% It can work with CudaMat to accelerate the deconvolution 
+% In the file polyinterp.m line 103 needs to be cahnged to:
+% for qq = 1:length(cp); xCP = cp(qq);
+% If everything is prepared run:
+% speedtestDeconv(0)
+% e.g. result could be 29.4 sec and
+% speedtestDeconv(1)
+% e.g. result could be 3.11 sec
+
+%***************************************************************************
+%   Copyright (C) 2008-2009 by Rainer Heintzmann                          *
+%   heintzmann@gmail.com                                                  *
+%                                                                         *
+%   This program is free software; you can redistribute it and/or modify  *
+%   it under the terms of the GNU General Public License as published by  *
+%   the Free Software Foundation; Version 2 of the License.               *
+%                                                                         *
+%   This program is distributed in the hope that it will be useful,       *
+%   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+%   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+%   GNU General Public License for more details.                          *
+%                                                                         *
+%   You should have received a copy of the GNU General Public License     *
+%   along with this program; if not, write to the                         *
+%   Free Software Foundation, Inc.,                                       *
+%   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+%**************************************************************************
+%
+
+function [res,resIllu,evolObj,evolIllu]=GenericDeconvolution(image,psf,NumIter,Method,Update,lambda,Prior,NegPrior,betas,borderSizes,Variances,useCuda,keepExtendedStack)
+global myim; % Cell array of the images
+global otfrep; % Cell array of the images
+global lambdaPenalty;
+global DeconvMethod;
+global RegularisationMethod;
+global NegPenalty;
+global DeconvMask;
+global DeconvVariances;
+global BetaVals;
+global myillu; 
+global myillu_mask; 
+global ToEstimate;   % This flag controls what to estimate in this iteration step. 0: sample density, 1: illumination intensity, 2: both, 3: psf
+global aRecon;   % This flag controls what to estimate in this iteration step. 0: sample density, 1: illumination intensity, 2: both, 3: psf
+global NormFac;  % normalisation factor
+global myillu_sumcond;
+% global TheObject;
+global cuda_enabled;  % also to see if cuda is installed
+
+if nargin < 13
+    keepExtendedStack=0;
+end
+if nargin < 12
+    useCuda=0;
+end
+if nargin < 11
+    Variances=[];
+end
+if nargin < 10
+    borderSizes=[0 0 0];  % These can help to avoid artefacts
+end
+if nargin < 9
+    betas=[1 1 1];
+end
+if nargin < 8 || isempty(NegPrior)
+    NegPrior='NegSqr';
+end
+if nargin < 7 || isempty(Prior)
+    Prior='TV';
+end
+if nargin < 6 || isempty(Update)
+    Update='lbfgs';   % Limited memory BFGS
+end
+if nargin < 5
+    lambda=-1.0;   % this will activate the algorithm to estimate lambda
+end
+if nargin < 4
+    Method = 'Poisson';
+end
+if nargin < 3
+    NumIter=50;
+end
+
+if size(NumIter) < 2
+    NumIter(2) = 5;  % Default value for SIM iterations. For Speckles use 0
+end
+
+if size(NumIter) < 3
+    NumIter(3) = 25;  % Default value for SIM iterations. For Speckles use 5
+end
+
+if size(NumIter) < 4
+    NumIter(4) = 5;  % Default value for SIM iterations. For Speckles use 15
+end
+
+%%
+% somehow the line below gets overwritten, so we have to set the boudary
+% in the inner loop "GenericErrorAndDeriv"
+dip_setboundary('periodic')  % Establishes Periodic Boudary conditions.
+
+borderSizes=borderSizes*2;
+
+if useCuda
+    % enableCuda();
+    initCuda();   % set all cuda use-variables to 1
+    set_ones_cuda(useCuda); set_zeros_cuda(useCuda);   % make sure that the zeros and ones function from cuda is used.
+else
+    if ~isempty(cuda_enabled)
+        disableCuda();  % just to make sure that newim and so on do not generate cuda objects
+    end
+end
+
+    s=size(image{1});
+    if norm(borderSizes) <= 0
+        borderSizes=s*0;
+    end
+    if length(borderSizes) > length(s)
+        s(end+1:length(borderSizes))=1;
+    end
+        
+    extraBorder = mod(s+borderSizes,2);
+    if numel(borderSizes)> 2 && borderSizes(3)==0
+        extraBorder(3)=0;
+    end
+    if norm(extraBorder) > 0
+        fprintf('Warning: Bodersize needed to be extended, to yield and even sized total array, required for rft.\n')
+        borderSizes=borderSizes+extraBorder;
+    end
+    clear extraBorder;
+    
+%myillu={};
+NumViews=1;
+lambdaPenalty=lambda;
+DeconvMethod=Method;
+RegularisationMethod=Prior;
+NegPenalty=NegPrior;
+DeconvMask=[];
+DeconvVariances=Variances;
+BetaVals=betas;
+ToEstimate=0;
+NormFac=1;
+
+myim={};  % in case some previous function stored more values in here, we need to clear it.
+
+% unix('touch cudaArith.cu; touch cuda_cuda.c; make'); clear classes  % compile command, just to copy and paste it
+if iscell(image) || isa(image,'dip_image_array')
+    myim=image;
+    if useCuda
+        for v=1:length(myim)
+            myim{v}=cuda(myim{v});
+        end
+    end
+else
+    for v=1:size(image,4)
+        if length(size(image))>3
+            myim{v}=image(:,:,:,v-1);
+        else
+            myim{v}=image;
+        end
+        if useCuda
+            myim{v}=cuda(myim{v});
+        end
+    end
+end
+clear image;
+
+if ~(iscell(psf) || isa(psf,'dip_image_array'))
+    for v=1:size(psf,4)
+        if length(size(psf))>3
+            n{v}=psf(:,:,:,v-1);
+        else
+            n{v}=psf;
+        end
+        if useCuda
+            n{v}=cuda(n{v});
+        end
+    end
+    psf=n;
+else
+   if useCuda
+        for v=1:length(psf)
+            psf{v}=cuda(psf{v});
+        end
+    end
+
+end
+
+OrigSize=size(myim{1});
+if length(borderSizes) > length(OrigSize)
+   OrigSize(end+1:length(borderSizes))=1;
+end
+%% Extend the boarder
+if isa(borderSizes,'dip_image')
+    fprintf('Mask provided as bordersize. Using mask instead of generating borders');
+    DeconvMask=borderSizes;    
+else if norm(borderSizes) > 0
+        NewSize=floor(OrigSize+borderSizes);
+        fprintf('Border region requested, expanding size from [');
+        fprintf('%g,',OrigSize);
+        fprintf('] to [');
+        fprintf('%g,',NewSize);
+        fprintf('] \n');
+        DeconvMask=extract(myim{1}*0>-1,NewSize);  % Place zero outside and one at the old data region
+        if ~isempty(Variances)
+            DeconvVariances=extract(Variances,NewSize,floor(NewSize/2),1);  % Pad with Variance of one (gets ignored)
+        end
+        for v=1:length(myim)
+            myim{v}=extract(myim{v},NewSize);  % Overwrite the old data            
+            if (v<=numel(psf)) && norm(size(psf{v})-NewSize)~=0
+               psf{v}=squeeze(extract(psf{v},NewSize,[],'cyclic'));
+               fprintf('Warning: View %d, PSF has incorrect size. Adapting the size of the PSF\n',v);
+            end
+            if exist('myillu') && ~isempty(myillu)
+                sillu=size(myillu{1+mod(v-1,numel(myillu))});
+                sillu(end+1:length(NewSize))=1;
+                if (v <= numel(myillu)) && norm(sillu-NewSize) ~= 0
+                    fprintf('Warning: View %d, The given illumination distribution does not correspond in size to the extended border region. Cyclically expanding to fix this.\n',v)
+                    myillu{v}=extract(myillu{v},NewSize,[],'cyclic');
+                end
+            end
+        end
+    else
+        for v=1:numel(psf)
+            spsf=size(psf{1+mod(v-1,numel(psf))});
+            OrigSize(end+1:length(spsf))=1;
+            if norm(spsf-OrigSize)~=0
+                psf{1+mod(v-1,numel(psf))}=squeeze(extract(psf{v},OrigSize));   % In case the PSF has a different size
+               fprintf('Warning: View %d, PSF has incorrect size. Adapting the size of the PSF\n',v);
+            end
+        end
+    end
+end
+
+%% Normalize PSF
+mysum=0;
+for v=1:numel(psf)
+    mysum=mysum+sum(psf{v});
+end
+for v=1:length(psf)
+    psf{v}=psf{v}/mysum;  % Forces the PSF to be normalized (over all sup-PSFs)
+end
+clear mysum;
+
+
+otfrep=cell(numel(psf),1);
+
+
+%%
+for v=1:numel(psf)
+    if useCuda
+       otfrep{v}=rft(fftshift(cuda(psf{v})));  % The fft shift is necessary, since the rft assumes a different coordinate zero position
+    else
+       otfrep{v}=rft(dip_image(fftshift(double(psf{v}))));
+    end
+    clear psf{v};  % These are not needed any longer. Free them, especially if converted to cuda
+end
+
+if useCuda
+    for v=1:numel(myillu_mask)
+        if ~isa(myillu_mask{v},'cuda')
+            myillu_mask{v}=cuda(myillu_mask{v});
+        end
+    end
+    for v=1:numel(myillu)
+        if ~isa(myillu{v},'cuda')
+            myillu{v}=cuda(myillu{v});
+        end
+    end
+else
+    for v=1:numel(myillu_mask)
+        if isa(myillu_mask{v},'cuda')
+            myillu_mask{v}=dip_image_force(myillu_mask{v}) ~= 0;
+        end
+    end
+    for v=1:numel(myillu)
+        if isa(myillu{v},'cuda')
+            myillu{v}=dip_image_force(myillu{v});
+        end
+    end
+end
+
+mysum=0;
+for v=1:length(myim)
+    if ~isempty(myillu)
+        mysum=mysum+sum(myim{v})/prod(OrigSize)/(sum(myillu{v})/prod(OrigSize));  % use the old size because of the effect of zero padding and the normalisation of the psf
+    else
+        mysum=mysum+sum(myim{v})/prod(OrigSize);  % use the old size because of the effect of zero padding and the normalisation of the psf
+    end
+end
+mymean=mysum/length(myim);  % Force it to be real
+
+if (1)
+    startVec=NumViews*(double(repmat(mymean,[1 prod(size(myim{1}))])))'; 
+else
+    global para;
+    startVec=NumViews*para.res_object_resampled * mymean / mean(para.res_object_resampled)';   % To test it on SIM simulations
+    startVec=convertGradToVec(startVec);
+end
+% Randomized starting vector helps sometime for Poisson, but seems bad as HF noise can end in Checkerboard patterns
+% startVec=startVec + mymean*rand(size(startVec))/10;   % Introduce some extra noise. This sometimes helps the initial gradient
+
+if useCuda
+    if ~isempty(DeconvMask)
+        DeconvMask=cuda(DeconvMask);
+    end
+    startVec=cuda(startVec);
+    set_ones_cuda(useCuda); set_zeros_cuda(useCuda);   % make sure that the zeros and ones function from cuda is used.
+end
+
+tic
+
+% Advances speed up version:
+
+if lambda < 0  % choose lambda automatically
+    lambdaPenalty=0; % remove the penalty term for the line below
+    [err,grad]=GenericErrorAndDeriv(startVec);  % just to get an idea about the size of the gradient to expect
+    lambdaPenalty=7e4/(mean(mymean)/mean(abs(grad))); % 1e6;
+    fprintf('Lambda was estimated to %g\n',lambdaPenalty);
+end
+clear mymean;
+
+%lambdaPenalty=0; % 1e6;
+if Update(1)~='B'
+%     NormFac=1;
+%     [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+%     aNorm=1/(norm(agrad)/numel(agrad));
+    NormFac=0.06;  % 1e-6
+
+    [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter(1));
+    if nargout > 2
+          evolObj=myoutput.trace.fval;
+    end
+else % Do a blind estimation of the unknown intensity distribution
+%% Do some sanity checks here
+myillu=[];  % force the illumination to be empty now
+if ~isempty(myillu_sumcond)
+    for n=1:numel(myillu_sumcond)
+        if myillu_sumcond{n}<2
+            error('First sum condition has to be at least two.');
+        end
+        if myillu_sumcond{n}>numel(myim)
+            error('Last sum condition cannot be larger than number of images.');
+        end
+        if n>1 && (myillu_sumcond{n} - myillu_sumcond{n-1}) < 2
+            error('Distance between sum conditions has to be at least two.');
+        end
+    end
+end
+        Update=Update(2:end);  % remove the first letter (standing for "Blind")
+        % Update='lbfgs'  % 'cg'
+        DataSize=prod(size(myim{1}));
+        if isempty(myillu_sumcond)
+            myillu_sumcond={length(myim)};
+        end
+        VecIllu = repmat(myim{1}*0+1,[1 1 1 numel(myim)-length(myillu_sumcond)]);
+%         if isa(myim{1},'cuda')
+%             VecIllu=ones_cuda(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
+%         else
+%             VecIllu=ones(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
+%         end
+        %%   
+        ToEstimate=1;
+        VecIllu=convertGradToVec(VecIllu);
+        ToEstimate=0;
+        %%
+        sumSqr=0;
+        for v=1:length(myim)
+            myillu{v}=myim{v}*0+1;  % start with uniform illumination
+            %myillu{v}=myim{v}*0+2*rand(size(myim{1},1),size(myim{1},1));  % start with uniform illumination
+            sumSqr=sumSqr+sum(myim{v}.*myim{v});   % for calculating the normalisation
+            % VecIllu(1+DataSize*(v-1):DataSize*v)=(double(reshape(myillu{v},[DataSize 1])))';
+        end
+        myRes=startVec;
+        aRecon=convertVecToObj(myRes,size(myim{1}));
+        evolObj=[];
+        evolIllu=[];
+        for n=1:NumIter(1)
+            ToEstimate=0;  % object estimation step
+            NormFac=0.06;
+            %NormFac=1/sumSqr;
+            InstantUpdate=1;  % defines whether the object update is done directly after the object iteration or only after illumination has been updated as well.
+            if n==1
+                NumObjIter=NumIter(2); % SIM 5;  Speckles: 0
+            else
+                NumObjIter=NumIter(3); %SIM 25;  Speckles: 5
+            end
+
+            savedRecon=aRecon; % make sure it does not get overwritten
+            fprintf('\n\nIterating Object, cycle %d\n',n);
+            if NumObjIter>0
+                [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,myRes,NumObjIter);  % Will also alter aRecon
+                if nargout > 2
+                    evolObj =[evolObj ; myoutput.trace.fval];
+                end
+            end
+            %[myRes,msevalue,moreinfo]=minFunc(@GenericErrorAndDeriv,myRes,optionsObj); % @ means: 'Function handle creation' 
+            % aRecon should still be globally set
+            if InstantUpdate
+                aRecon=convertVecToObj(myRes,size(myim{1}));
+                dipshow(3,aRecon);drawnow();
+            else
+                aRecon=savedRecon; % make sure it does not get overwritten
+            end
+            %saveRecon=aRecon;
+            ToEstimate=1;  % illumination estimation step
+            NumIlluIter=NumIter(4); % SIM 5;  Speckles: 15
+            % aRecon=TheObject;
+            if n==1
+                NormFac=1;
+                [val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation
+                IlluNorm=1/(norm(abs(agrad))/numel(agrad));
+                %NormFac=IlluNorm;
+                %[val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation
+                %(norm(agrad)/numel(agrad))
+            end
+            NormFac=IlluNorm*6e-5;
+            % NormFac=1/sumSqr;
+            % NormFac=0.1; % /sumSqr;
+            fprintf('\n\nIterating Illuination, cycle %d\n',n);
+            [VecIllu,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecIllu,NumIlluIter);
+            if nargout > 2
+                evolIllu=[evolIllu ; myoutput.trace.fval];
+            end
+            %[VecIllu,msevalue,moreinfo]=minFunc(@GenericErrorAndDeriv,VecIllu,optionsIllu); % @ means: 'Function handle creation' 
+            convertVecToIllu(VecIllu);  % writes result into the myillu images
+            illu=cat(4,myillu{:});
+            dipshow(4,illu);drawnow();
+            if ~InstantUpdate
+                aRecon=convertVecToObj(myRes,size(myim{1}));
+                dipshow(3,aRecon);drawnow();
+            end
+        end            
+end
+%set_ones_cuda(0);
+%set_zeros_cuda(0);
+mytime=toc;
+fprintf('Time was %g, lambda: %g\n', mytime, lambdaPenalty)
+
+% res=reshape(dip_image(myRes','single'),size(myim{1}));
+if isa(myRes,'cuda')
+    res=convertVecToObj(double_force(myRes),size(myim{1}));
+else
+    res=convertVecToObj(myRes,size(myim{1}));
+end
+
+clear myim;
+clear otfrep;
+clear DeconvMask;
+if useCuda
+    cuda_clearheap();
+    toc
+    aRecon=dip_image_force(aRecon);
+    toc
+    set_ones_cuda(0); set_zeros_cuda(0);   % make sure that the zeros and ones function from cuda is used.
+end
+
+if norm(borderSizes) > 0 && keepExtendedStack == 0
+   res=extract(res,OrigSize(1:length(size(res))));
+   fprintf('Reduced size to original\n');
+end
+
+if (nargout > 1)
+    resIllu=myillu;
+end
+
+
