@@ -1,13 +1,13 @@
-% [aRecon]=GenericDeconvolution(image,psf,NumIter,Method,Update,lambda,Prior,NegPrior,betas,borderSizes,Variances,useCuda) : ML-Deconvolution routine using various approaches
-% image: Image to Deconvolve
+% [aRecon]=GenericDeconvolution(image,psf,NumIter,Method,Update,Regularisation,betas,borderSizes,Variances,useCuda,keepExtendedStack)% image: Image to Deconvolve
 % psf: Point spread function to deconvolve with
 % NumIter: Iterations to perform. Optionally the subiterations for initial Object iterations (2) and successive object (3) and illumination iterations (4) can be given.
 % Method: One of 'LeastSqr', 'WeightedLeastSqr' and 'Poisson', defining the norm of the data-simulation agreement to optimize
 % Update: Default: [] uses 'lbfgs', This describes the minimization algorithm (update scheme) to use. You can use all the ones that minFunc allows, but in addition also 'RL' for
 % RichardsonLucy multiplicative (EM) Algorithm, or 'RLL' for a Wolfe line search along the Richardson Lucy update direction
-% lambda: relative weight of regularisation term
-% Prior: One of 'NONE' (no regularisation), 'GR' (Good's roughness penalty), 'AR' (Arigovindan's Entropy Regularisation), 'TV' (total variation)
-% NegPrior: One of 'NONE' (no penalty for negative object values), 'NegSqr' (Square penalty for negative values)
+% Regularisation : A cell array containing the regularisers to use and their respective arguments. E.g. {'TV',[0.02 1.0]} will use total variation with a lambda of 0.02 and an epsilon of 1.0
+%       They can be combined (e.g. {'TV',[0.02 1.0];'NegSqr',0.05}. 
+%       In the case of blind deconvolution two such respective arrays have to be provided. E.g. {{'TV',[0.02 1.0];'NegSqr',0.05},{'NegSqr'}}.
+%
 % betas: Vector of beta values to vary the weight of different directions (e.g. anisotropic sampling). This should correspond to pixelsizes, for example normalized to the x-pixel size
 % or optical resolution
 % borderSizes: If given, the reconstruction is done over an extended area, but the non-existing data there is assumed to be always correct (useful especially for widefield data)
@@ -45,13 +45,11 @@
 %**************************************************************************
 %
 
-function [res,resIllu,evolObj,evolIllu]=GenericDeconvolution(image,psf,NumIter,Method,Update,lambda,Prior,NegPrior,betas,borderSizes,Variances,useCuda,keepExtendedStack)
+function [res,resIllu,evolObj,evolIllu]=GenericDeconvolution(image,psf,NumIter,Method,Update,Regularisation,betas,borderSizes,Variances,useCuda,keepExtendedStack)
 global myim; % Cell array of the images
 global otfrep; % Cell array of the images
-global lambdaPenalty;
 global DeconvMethod;
-global RegularisationMethod;
-global NegPenalty;
+global RegularisationParameters;
 global DeconvMask;
 global DeconvVariances;
 global BetaVals;
@@ -64,32 +62,26 @@ global myillu_sumcond;
 % global TheObject;
 global cuda_enabled;  % also to see if cuda is installed
 
-if nargin < 13
+if nargin < 11
     keepExtendedStack=0;
 end
-if nargin < 12
+if nargin < 10
     useCuda=0;
 end
-if nargin < 11
+if nargin < 9
     Variances=[];
 end
-if nargin < 10
+if nargin < 8
     borderSizes=[0 0 0];  % These can help to avoid artefacts
 end
-if nargin < 9
+if nargin < 7
     betas=[1 1 1];
 end
-if nargin < 8 || isempty(NegPrior)
-    NegPrior='NegSqr';
+if nargin < 6
+    Regularisation={};  % No regularisation performed
 end
-if nargin < 7 || isempty(Prior)
-    Prior='TV';
-end
-if nargin < 6 || isempty(Update)
+if nargin < 5 || isempty(Update)
     Update='lbfgs';   % Limited memory BFGS
-end
-if nargin < 5
-    lambda=-1.0;   % this will activate the algorithm to estimate lambda
 end
 if nargin < 4
     Method = 'Poisson';
@@ -109,6 +101,9 @@ end
 if size(NumIter) < 4
     NumIter(4) = 5;  % Default value for SIM iterations. For Speckles use 15
 end
+
+[RegObj,RegIllu]=ParseRegularisation(Regularisation);
+RegularisationParameters=RegObj;
 
 %%
 % somehow the line below gets overwritten, so we have to set the boudary
@@ -147,10 +142,10 @@ end
     
 %myillu={};
 NumViews=1;
-lambdaPenalty=lambda;
+% lambdaPenalty=lambda;
 DeconvMethod=Method;
-RegularisationMethod=Prior;
-NegPenalty=NegPrior;
+%RegularisationMethod=Prior;
+%NegPenalty=NegPrior;
 DeconvMask=[];
 DeconvVariances=Variances;
 BetaVals=betas;
@@ -328,12 +323,12 @@ tic
 
 % Advances speed up version:
 
-if lambda < 0  % choose lambda automatically
-    lambdaPenalty=0; % remove the penalty term for the line below
-    [err,grad]=GenericErrorAndDeriv(startVec);  % just to get an idea about the size of the gradient to expect
-    lambdaPenalty=7e4/(mean(mymean)/mean(abs(grad))); % 1e6;
-    fprintf('Lambda was estimated to %g\n',lambdaPenalty);
-end
+% if lambda < 0  % choose lambda automatically
+%     lambdaPenalty=0; % remove the penalty term for the line below
+%     [err,grad]=GenericErrorAndDeriv(startVec);  % just to get an idea about the size of the gradient to expect
+%     lambdaPenalty=7e4/(mean(mymean)/mean(abs(grad))); % 1e6;
+%     fprintf('Lambda was estimated to %g\n',lambdaPenalty);
+% end
 clear mymean;
 
 %lambdaPenalty=0; % 1e6;
@@ -343,6 +338,7 @@ if Update(1)~='B'
 %     aNorm=1/(norm(agrad)/numel(agrad));
     NormFac=0.06;  % 1e-6
 
+    RegularisationParameters=RegObj;
     [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter(1));
     if nargout > 2
           evolObj=myoutput.trace.fval;
@@ -405,6 +401,7 @@ end
             savedRecon=aRecon; % make sure it does not get overwritten
             fprintf('\n\nIterating Object, cycle %d\n',n);
             if NumObjIter>0
+                RegularisationParameters=RegObj;
                 [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,myRes,NumObjIter);  % Will also alter aRecon
                 if nargout > 2
                     evolObj =[evolObj ; myoutput.trace.fval];
@@ -434,6 +431,7 @@ end
             % NormFac=1/sumSqr;
             % NormFac=0.1; % /sumSqr;
             fprintf('\n\nIterating Illuination, cycle %d\n',n);
+            RegularisationParameters=RegIllu;
             [VecIllu,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecIllu,NumIlluIter);
             if nargout > 2
                 evolIllu=[evolIllu ; myoutput.trace.fval];
@@ -451,7 +449,8 @@ end
 %set_ones_cuda(0);
 %set_zeros_cuda(0);
 mytime=toc;
-fprintf('Time was %g, lambda: %g\n', mytime, lambdaPenalty)
+%fprintf('Time was %g, lambda: %g\n', mytime, lambdaPenalty)
+fprintf('Time was %g\n', mytime)
 
 % res=reshape(dip_image(myRes','single'),size(myim{1}));
 if isa(myRes,'cuda')

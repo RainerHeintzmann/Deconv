@@ -190,13 +190,13 @@ if do_comp
 % 2) The deconvolution takes into account the aberrated illumination
 % (should perform better than previous one)
 myillu=myspeckles;
-myDeconvC=GenericDeconvolution(img,h,NumIter,'LeastSqr',[],0.001,'NONE','NegSqr',[1,1,1],[0 0],[],useCuda); 
+myDeconvC=GenericDeconvolution(img,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
 % deconv_aberrated=cat(4,myDeconvC,obj,img{1}) %Display result
 
 % 3) Wide-field
 myillu=[];
 img2=squeeze(sum(cat(4,img{:}),[],4)); %Wide-field image
-myDeconvWF=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],0.001,'NONE','NegSqr',[1,1,1],[0 0],[],useCuda); 
+myDeconvWF=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
 % st=cat(4,myDeconvWF,myDeconvC,obj,myspeckles{1},img{1}) %Display result
 
 end %end of comparison
@@ -248,11 +248,14 @@ end
 
 %global EvolIllu; %Aurelie 26022013
 %global EvolObj; %Aurelie 26022013
+MyObjReg={'NegSqr',0.001;'GR',0.02};
+MyIlluReg={'NegSqr',0.001};
+useCuda=0;
 
-[myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,Lambda,Pen,Neg,[1,1,1],DeconvBorders,[],useCuda,extStack); 
+[myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
 resIllu=cat(4,myillu{:});
-[myDeconvBlind2,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,Lambda,Pen,Neg,[1,1,1],DeconvBorders,[],useCuda,extStack); 
-% [myDeconvBlind resIllu]=GenericDeconvolutionAJ(img,h,NumIter,Norm,SearchMethod,Lambda,Pen,Neg,[1,1,1],DeconvBorders,[],useCuda,extStack); 
+% [myDeconvBlind2,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
+% [myDeconvBlind resIllu]=GenericDeconvolutionAJ(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
 % st=cat(4,myDeconvWF/max(myDeconvWF),myDeconvBlind/max(myDeconvBlind),myDeconvC/max(myDeconvC),obj/max(obj),myspeckles{1}/max(myspeckles{1}),img{1}/max(img{1}))
 
 % Plots evolution of the cost functional (Aurelie 26022013)

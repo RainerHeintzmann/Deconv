@@ -15,7 +15,11 @@ elseif ToEstimate==1 &&  ~isempty(myillu_mask) && numel(myillu_mask) >= 1
         end
     end
     %if isa(grad,'cuda')
+    if exist('zeros_cuda') > 0
         out=zeros_cuda(sumpixels,1,'scomplex'); % allocate the output vector
+    else
+        out=complex(zeros(sumpixels,1),0); % allocate the output vector
+    end
     %else
         % out=complex(zeros(sumpixels,1,'single'));
     %end

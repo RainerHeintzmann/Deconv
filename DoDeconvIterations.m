@@ -1,3 +1,10 @@
+% [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter)  : Performs a number of deconv iterations with a specific update rule
+% Update : The update rule. Choices are:
+%       'RL' : Ritchardson Lucy
+%       'RLL' : Ritchardson Lucy, with a line search along each gradient direction
+%       'RLF' : Ritchardson Lucy, with overrelation parameters chosen from a fixed table
+%       others : all other choices are handed over to the minfuc routine (e.g. use 'lbfgs')
+
 function [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter)
 moreinfo='';
 if isempty(Update)

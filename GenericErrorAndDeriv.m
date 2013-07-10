@@ -21,19 +21,13 @@
 %   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
 %**************************************************************************
 %
-% This function is based on a talk by 
-% Muthuvel  Arigovindan*,  Daniel Elnatan,  Jennifer  Fung,  Eric Branlund,  John W. Sedat,   and  David A.  Agard
-% University of California at San Francisco
-% suggesting a regolarisation term as given below
 
 function [err,grad]=GenericErrorAndDeriv(myinput)
 global myim;
 global myillu;  % only of there is an illumination pattern present, will it be used
 global otfrep;
-global lambdaPenalty;
 global DeconvMethod;
-global RegularisationMethod;
-global NegPenalty;
+global RegularisationParameters;  % This is a matrix with all possible regularisation lambdas (and other parameters)
 global BetaVals;  % These are the scaling factors between pixel coordinates. This is proportional to the pixel width, but should be normalized 
 global DeconvMask;  % only data in this mask will be evaluated
 global DeconvVariances;  % only data in this mask will be evaluated
@@ -42,11 +36,8 @@ global aRecon;   % Here the sample is stored, if the estimation is illumination 
 global NormFac;  % normalisation factor
 global myillu_sumcond;   % denotes the positions in myillu for which each the sum condition (down to previous mention) are fullfilled.
 
-alpha= 1.0;  % Weighting between laplacian and noise penalty
-%alpha= 10000.0;  % Weighting between laplacian and noise penalty
-gamma = 1.0; % Weight for the intensity penalty under the logarithm
 %delta= 100; % Weight for the negativtiy penalty
-delta= 1000; % Weight for the negativtiy penalty
+%delta= 1000; % Weight for the negativtiy penalty
 %delta= 1; % Weight for the negativtiy penalty
 
 DMask=[];
@@ -213,152 +204,36 @@ if viewNum == 1 || ~isempty(ToEstimate) && ToEstimate==1
     end
 end
 
-switch RegularisationMethod
-    case 'NONE'
-        myReg=0;
-        myRegGrad=0;
-    case 'GR'  % Good's roughness penalty: Abs(Gradient ^ 2)
-        
-        % aGrad=gradient(aRecon)
-        % myHessian = hessian(aRecon);
-        % myRegGrad = -2*real(myHessian{1,1}+myHessian{2,2}+2*myHessian{1,2}); 
-        if (ndims(toRegularize) == 2) || (size(toRegularize,3) == 1)
-            if (ndims(toRegularize) == 2)
-                aGrad{1}=(circshift(toRegularize,[1 0])-circshift(toRegularize,[-1 0]))/(2*BetaVals(1));  % cyclic rotation
-                aGrad{2}=(circshift(toRegularize,[0 1])-circshift(toRegularize,[0 -1]))/(2*BetaVals(2));  % cyclic rotation
-                myRegGrad = (1/(2*BetaVals(1)*BetaVals(1)))*(2*toRegularize-circshift(toRegularize,[-2 0]) - circshift(toRegularize,[2 0])) + ...
-                    (1/(2*BetaVals(2)*BetaVals(2)))*(2*toRegularize-circshift(toRegularize,[0 -2]) - circshift(toRegularize,[0 2]));
-            else (size(toRegularize,3) == 1)
-                aGrad{1}=(circshift(toRegularize,[1 0 0])-circshift(toRegularize,[-1 0 0]))/2;  % cyclic rotation
-                aGrad{2}=(circshift(toRegularize,[0 1 0])-circshift(toRegularize,[0 -1 0]))/2;  % cyclic rotation
-                myRegGrad = (1/(2*BetaVals(1)*BetaVals(1)))*(2*toRegularize-circshift(toRegularize,[-2 0 0]) - circshift(toRegularize,[2 0 0])) + ...
-                    (1/(2*BetaVals(2)*BetaVals(2)))*(2*toRegularize-circshift(toRegularize,[0 -2 0]) - circshift(toRegularize,[0 2 0]));
-            end
-        
-            % myReg = sum(BetaVals(1)*aGrad{1} .* aGrad{1} + BetaVals(2)*aGrad{2} .* aGrad{2});
-            myReg = sum(aGrad{1} .* aGrad{1} + aGrad{2} .* aGrad{2});
-        elseif ndims(toRegularize) == 3
-            aGrad{1}=(circshift(toRegularize,[1 0 0])-circshift(toRegularize,[-1 0 0]))/(2*BetaVals(1));  % cyclic rotation
-            aGrad{2}=(circshift(toRegularize,[0 1 0])-circshift(toRegularize,[0 -1 0]))/(2*BetaVals(2));  % cyclic rotation
-            aGrad{3}=(circshift(toRegularize,[0 0 1])-circshift(toRegularize,[0 0 -1]))/(2*BetaVals(3));  % cyclic rotation
-            myReg = sum(aGrad{1} .* aGrad{1} + aGrad{2} .* aGrad{2} + aGrad{3} .* aGrad{3});
-            myRegGrad = (1/(2*BetaVals(1)*BetaVals(1)))*(2*toRegularize-circshift(toRegularize,[-2 0 0])-circshift(toRegularize,[2 0 0])) + ...
-                        (1/(2*BetaVals(2)*BetaVals(2)))*(2*toRegularize-circshift(toRegularize,[0 -2 0])-circshift(toRegularize,[0 2 0])) + ...
-                        (1/(2*BetaVals(3)*BetaVals(3)))*(2*toRegularize-circshift(toRegularize,[0 0 -2])-circshift(toRegularize,[0 0 2]));
-        else % 1-D
-            aGrad{1}=(circshift(toRegularize,1)-circshift(toRegularize,-1))/(2*BetaVals(1));  % cyclic rotation
-            myReg = sum(aGrad{1} .* aGrad{1});
-            myRegGrad = (1/(2*BetaVals(1)*BetaVals(1)))*(2*toRegularize-circshift(toRegularize,-2) - circshift(toRegularize,2)); 
-        end            
-        
-    case 'AR'
-        % H = hessian(aRecon);
-        aReconSqr=toRegularize.*toRegularize;
-
-        if ndims(toRegularize) == 2 || (size(toRegularize,3) == 1)
-            s1=1/1.6;s2=0.1727;
-            H11=dip_convolve1d(toRegularize,s1*[1 -2 1],0,1)/(BetaVals(1)*BetaVals(1)); % second X derivative
-            H22=dip_convolve1d(toRegularize,s1*[1 -2 1],1,1)/(BetaVals(2)*BetaVals(2)); % second Y derivative
-            H2a=dip_convolve1d(toRegularize,[-1 0 1],0,1); %
-            H12=dip_convolve1d(H2a,s2*[-1 0 1],1,1)/(BetaVals(1)*BetaVals(2)); % mixed derivative XY
-            myProjHessianSqr= H11 .*H11 + H22.*H22 + 2*H12.*H12; 
-            T1 = 1+ alpha*(gamma*aReconSqr + myProjHessianSqr);  % will be summed over as log values
-            tmp11 = dip_convolve1d(H11 ./ T1,s1*[1 -2 1],0,1)/(BetaVals(1)*BetaVals(1));
-            tmp12=dip_convolve1d(H12 ./ T1,[-1 0 1],0,1); %
-            tmp12=2*dip_convolve1d(tmp12,s2*[-1 0 1],1,1)/(BetaVals(1)*BetaVals(2)); % mixed derivative XY
-            tmp22 = dip_convolve1d((H22 ./ T1),s1*[1 -2 1],1,1)/(BetaVals(2)*BetaVals(2));
-            myHessian2 = tmp11 + tmp12 + tmp22;
-            myRegGrad = 2*alpha*myHessian2 + gamma*2*alpha*toRegularize ./ T1;
-        else
-            s1=1/1.6;s2=0.1727;
-            H11=dip_convolve1d(toRegularize,s1*[1 -2 1],0,1)/(BetaVals(1)*BetaVals(1)); % second X derivative
-            H22=dip_convolve1d(toRegularize,s1*[1 -2 1],1,1)/(BetaVals(2)*BetaVals(2)); % second Y derivative
-            H33=dip_convolve1d(toRegularize,s1*[1 -2 1],2,1)/(BetaVals(3)*BetaVals(3)); % second Y derivative
-            H2a=dip_convolve1d(toRegularize,[-1 0 1],0,1); %
-            H12=dip_convolve1d(H2a,s2*[-1 0 1],1,1)/(BetaVals(1)*BetaVals(2)); % mixed derivative XY
-            H2b=dip_convolve1d(toRegularize,[-1 0 1],0,1); %
-            H13=dip_convolve1d(H2b,s2*[-1 0 1],2,1)/(BetaVals(1)*BetaVals(3)); % mixed derivative XZ
-            H2c=dip_convolve1d(toRegularize,[-1 0 1],1,1); %
-            H23=dip_convolve1d(H2c,s2*[-1 0 1],2,1)/(BetaVals(2)*BetaVals(3)); % mixed derivative YZ
-            myProjHessianSqr= H11 .*H11 + H22.*H22 +H33.*H33 + 2*H12.*H12+ 2*H13.*H13+ 2*H23.*H23;  % Does it need the weights of the filters?
-            T1 = 1+ alpha*(gamma*aReconSqr + myProjHessianSqr);
-            tmp11 = dip_convolve1d(H11 ./ T1,s1*[1 -2 1],0,1)/(BetaVals(1)*BetaVals(1));
-            tmp22 = dip_convolve1d(H22 ./ T1,s1*[1 -2 1],1,1)/(BetaVals(2)*BetaVals(2));
-            tmp33 = dip_convolve1d(H33 ./ T1,s1*[1 -2 1],1,1)/(BetaVals(3)*BetaVals(3));
-            tmp12=dip_convolve1d(H12 ./ T1,[-1 0 1],0,1); %
-            tmp12=2*dip_convolve1d(tmp12,s2*[-1 0 1],1,1)/(BetaVals(1)*BetaVals(2)); % mixed derivative XY
-            tmp13=dip_convolve1d(H13 ./ T1,[-1 0 1],0,1); %
-            tmp13=2*dip_convolve1d(tmp13,s2*[-1 0 1],2,1)/(BetaVals(1)*BetaVals(3)); % mixed derivative XZ
-            tmp23=dip_convolve1d(H23 ./ T1,[-1 0 1],1,1); %
-            tmp23=2*dip_convolve1d(tmp23,s2*[-1 0 1],2,1)/(BetaVals(2)*BetaVals(3)); % mixed derivative YZ
-
-            myHessian2 = tmp11 + tmp12 + tmp13 + tmp22+ tmp23+tmp33 ;
-            myRegGrad = 2*alpha*myHessian2 + gamma*2*alpha*toRegularize ./ T1;
-        end
-        clear aReconSqr;
-        % An alternative would have been to use the theorem:
-        % (d/df)(d/dx)f(x) = f''(x) / f'(x)
-        
-        myReg = sum(log(T1));
-    case 'TV'
-        % The total variation code below is based on a simple 2-point finite difference
-        % calculation using cicular shifting (like rsl, rsr)
-        % The derivative with respect to the function value is calculated
-        % as the exact value for the discrete version of the finite
-        % differences. This way the gradient should be correct.
-        % It was checked using the TestGradients function.
-        % aGrad=gradient(aRecon);
-        % betaX=1.0;betaY=1.0;betaZ=1.0; % In the future this can be anisotropic
-        %
-        % The Regularisation modification with epsR was introduced, according to 
-        % Ferreol Soulez et al. "Blind deconvolution of 3D data in wide field fluorescence microscopy
-        % 
-        epsC=1e-10;
-        epsR=1e2*1e2;  % Modifies the TV norm to behave better (e.g. considering digitalisation effects)
-        if (ndims(toRegularize) == 2) || (size(toRegularize,3) == 1)
-            if (ndims(toRegularize) == 2)
-                aGrad{1}=(circshift(toRegularize,[1 0])-circshift(toRegularize,[-1 0]))/(2*BetaVals(1));  % cyclic rotation
-                aGrad{2}=(circshift(toRegularize,[0 1])-circshift(toRegularize,[0 -1]))/(2*BetaVals(2));  % cyclic rotation
-                mySqrt = sqrt(aGrad{1}*aGrad{1}+aGrad{2}*aGrad{2}+epsR);
-                mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-                myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,[-2 0]))./circshift(mySqrt,[-1 0]) - (circshift(toRegularize,[2 0])-toRegularize)./circshift(mySqrt,[1 0])) + ...
-                        (1/(4*BetaVals(2)*BetaVals(2)))*((toRegularize-circshift(toRegularize,[0 -2]))./circshift(mySqrt,[0 -1]) - (circshift(toRegularize,[0 2])-toRegularize)./circshift(mySqrt,[0 1]));
-            else (size(toRegularize,3) == 1)
-                aGrad{1}=(circshift(toRegularize,[1 0 0])-circshift(toRegularize,[-1 0 0]))/(2*BetaVals(1));  % cyclic rotation
-                aGrad{2}=(circshift(toRegularize,[0 1 0])-circshift(toRegularize,[0 -1 0]))/(2*BetaVals(2));  % cyclic rotation
-                mySqrt = sqrt(aGrad{1}*aGrad{1}+aGrad{2}*aGrad{2}+epsR);
-                mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-                myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,[-2 0 0]))./circshift(mySqrt,[-1 0 0]) - (circshift(toRegularize,[2 0 0])-toRegularize)./circshift(mySqrt,[1 0 0])) + ...
-                        (1/(4*BetaVals(2)*BetaVals(2)))*((toRegularize-circshift(toRegularize,[0 -2 0]))./circshift(mySqrt,[0 -1 0]) - (circshift(toRegularize,[0 2 0])-toRegularize)./circshift(mySqrt,[0 1 0]));
-            end
-        elseif ndims(toRegularize) == 3
-            aGrad{1}=(circshift(toRegularize,[1 0 0])-circshift(toRegularize,[-1 0 0]))/(2*BetaVals(1));  % cyclic rotation
-            aGrad{2}=(circshift(toRegularize,[0 1 0])-circshift(toRegularize,[0 -1 0]))/(2*BetaVals(2));  % cyclic rotation
-            aGrad{3}=(circshift(toRegularize,[0 0 1])-circshift(toRegularize,[0 0 -1]))/(2*BetaVals(3));  % cyclic rotation
-            mySqrt = sqrt(aGrad{1}*aGrad{1}+aGrad{2}*aGrad{2}+aGrad{3}*aGrad{3}+epsR);
-            mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-            myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,[-2 0 0]))./circshift(mySqrt,[-1 0 0]) - (circshift(toRegularize,[2 0 0])-toRegularize)./circshift(mySqrt,[1 0 0])) + ...
-                        (1/(4*BetaVals(2)*BetaVals(2)))*((toRegularize-circshift(toRegularize,[0 -2 0]))./circshift(mySqrt,[0 -1 0]) - (circshift(toRegularize,[0 2 0])-toRegularize)./circshift(mySqrt,[0 1 0])) + ...
-                        (1/(4*BetaVals(3)*BetaVals(3)))*((toRegularize-circshift(toRegularize,[0 0 -2]))./circshift(mySqrt,[0 0 -1]) - (circshift(toRegularize,[0 0 2])-toRegularize)./circshift(mySqrt,[0 0 1]));
-        else % 1-D
-            aGrad{1}=(circshift(toRegularize,1)-circshift(toRegularize,-1))/(2*BetaVals(1));  % cyclic rotation
-            mySqrt = sqrt(aGrad{1}*aGrad{1}+epsR);
-            mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-            myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,-2))./circshift(mySqrt,-1) - (circshift(toRegularize,2)-toRegularize)./circshift(mySqrt,1)); 
-        end            
-        myReg = sum(mySqrt);
-    otherwise
-        error('Unknown regularisation method: Options are: NONE, TV, AR');
+myReg=0;
+myRegGrad=0;
+ 
+myLambda=RegularisationParameters(1,1); %case 'GS'  % Good's roughness penalty: Abs(Gradient ^ 2)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGS(toRegularize,BetaVals);
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+myLambda=RegularisationParameters(2,1); %case 'AR'  % Arigovindan's roughness penalty
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeAR(toRegularize,BetaVals);
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
 
-switch NegPenalty
-    case 'NONE'
-    case 'NegSqr'
-            myReg = myReg+delta*sum(toRegularize.^2.*(toRegularize<0));
-            myRegGrad = myRegGrad+2*delta*toRegularize .* (toRegularize<0);
-        % fprintf('Neg Penalty: %g\n',delta*sum(aRecon.^2.*(aRecon<0))*lambdaPenalty /prod(size(aRecon)));
-    otherwise
-        error('Unknown negative penalty method: Options are: NONE, NegSqr');
+myLambda=RegularisationParameters(3,1); %case 'TV'  Total variation roughness penalty (with eps)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeTV(toRegularize,BetaVals,RegularisationParameters(3,2));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+
+myLambda=RegularisationParameters(4,1); %case 'NegSqr'  Total variation roughness penalty (with eps)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeNegSqr(toRegularize);
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+    % fprintf('Neg Penalty: %g\n',delta*sum(aRecon.^2.*(aRecon<0))*lambdaPenalty /prod(size(aRecon)));
+end
+myLambda=RegularisationParameters(5,1); %case 'GR'  % Good's roughness penalty: Abs(Gradient ^ 2)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGR(toRegularize,BetaVals);
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
 
 clear ToRegularise;
@@ -367,21 +242,21 @@ if ~isempty(ToEstimate) && ToEstimate==1    % estimate the illumination
     myGrad= myGrad .*  aRecon;    % multiplication with the sample density (rho) for estimating the gradient of myillu
     agradIdx=viewNum-1-(currentSumCondIdx-1);
     if viewNum ~= myillu_sumcond{currentSumCondIdx}
-        grad(:,:,:,agradIdx)=myGrad + lambdaPenalty * myRegGrad;
+        grad(:,:,:,agradIdx)=myGrad + myRegGrad;
     else  % The last residuum has to be subtracted from each of the other residuals, see eq. S14 and S4 in supplementary methods of DOI: 10.1038/NPHOTON.2012.83
-        grad(:,:,:,prevSumCondGradIdx:agradIdx-1)=grad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+lambdaPenalty * myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
+        grad(:,:,:,prevSumCondGradIdx:agradIdx-1)=grad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
         prevSumCondGradIdx=agradIdx;
         currentSumCondIdx = currentSumCondIdx +1;
     end
     
-    err=err+myError + lambdaPenalty * myReg;
+    err=err+myError + myReg;
 else
     if ~isempty(myillu)   % account for the illumination pattern in the object iteration (if present)
         myGrad=myGrad .*  myIllum;
     end
     if viewNum == 1       % object penalty needs to be accounted for only once
-        grad=grad+ myGrad + lambdaPenalty * myRegGrad; 
-        err=err+myError + lambdaPenalty * myReg;    % was cleared before the for-loop
+        grad=grad+ myGrad +  myRegGrad; 
+        err=err+myError + myReg;    % was cleared before the for-loop
     else
         grad=grad+myGrad;   % was cleared before the for-loop
         err=err+myError;    % was cleared before the for-loop
