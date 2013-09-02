@@ -196,7 +196,7 @@ myDeconvC=GenericDeconvolution(img,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1
 % 3) Wide-field
 myillu=[];
 img2=squeeze(sum(cat(4,img{:}),[],4)); %Wide-field image
-myDeconvWF=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
+myDeconvWF_GR=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'GR',0.2;'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
 % st=cat(4,myDeconvWF,myDeconvC,obj,myspeckles{1},img{1}) %Display result
 
 end %end of comparison

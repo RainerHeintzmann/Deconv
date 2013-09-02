@@ -22,7 +22,7 @@
 %**************************************************************************
 %
 
-function [err,grad]=GenericErrorAndDeriv(myinput)
+function [err,thegrad]=GenericErrorAndDeriv(myinput)
 global myim;
 global myillu;  % only of there is an illumination pattern present, will it be used
 global otfrep;
@@ -35,6 +35,10 @@ global ToEstimate;   % This flag controls what to estimate in this iteration ste
 global aRecon;   % Here the sample is stored, if the estimation is illumination or psf.
 global NormFac;  % normalisation factor
 global myillu_sumcond;   % denotes the positions in myillu for which each the sum condition (down to previous mention) are fullfilled.
+global ForcePos;
+global ComplexPSF; % If this flag is set, the PSF is complex and Fourier-transforms are done fully complex
+global IntensityData; % If this flag is active, the data is interpreted as the abs square of the image amplitude (after convolution with the coherent asf)
+global ComplexObj; % If active, the object is assumed to be complex valued. 
 
 %delta= 100; % Weight for the negativtiy penalty
 %delta= 1000; % Weight for the negativtiy penalty
@@ -53,18 +57,22 @@ DataLength=prod(DataSize);
 %if length(DataSize) < 3
 %    DataSize(3) = 1;
 %end
+if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
+    savedInput=myinput;
+    myinput=abssqr(myinput); % converts the auxilary function back to the all positive object
+end
 
 if isempty(ToEstimate) || ToEstimate==0
     % aRecon=reshape(dip_image(myinput','single'),DataSize);  % The reconstruction can be up to 3D, whereas the data might be 4D
     aRecon=convertVecToObj(myinput,DataSize);  % converts the matlab vector into a dipimage object
-    grad=newim(aRecon);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
+    thegrad=newim(aRecon);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
 elseif ToEstimate==1
     convertVecToIllu(myinput);  % will set the myillu{n} including the last one which is estimated from the previous ones
     asize=size(myillu{1});
     if length(asize) < 3
         asize(length(asize)+1:3)=1;
     end
-    grad=newim([asize (length(myillu)-length(myillu_sumcond))]);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
+    thegrad=newim([asize (length(myillu)-length(myillu_sumcond))]);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
 else
     error('Other estimation methos not implemented yet.');
 end
@@ -91,18 +99,18 @@ end
 if ~isempty(myillu)
     if length(myillu) == 1  % this means the fft needs to be done only once
         if viewNum==1  % needs to be done only once in this case
-            %if isa(aRecon,'cuda')
+            if ComplexPSF
+                ftRecons=ft(aRecon .* myIllum);
+            else
                 ftRecons=rft(aRecon .* myIllum);
-            %else
-            %    ftRecons=ft(aRecon .* myIllum);
-            %end
+            end
         end
     else  % do a forward convolution for every instance of illumination distribution myillu
-        %if isa(aRecon,'cuda')
-            ftRecons=rft(aRecon .* myIllum);
-        %else
-        %    ftRecons=ft(aRecon .* myIllum);
-        %end
+        if ComplexPSF
+           ftRecons=ft(aRecon .* myIllum);
+        else
+           ftRecons=rft(aRecon .* myIllum);
+        end
     end
     %if length(myillu) > 1
     %    error('For the moment only a single illumination distribution is allowed for each call to GenericErrorAndDeriv');
@@ -110,20 +118,27 @@ if ~isempty(myillu)
 else  % no illumination is used
     % Forward model
     if viewNum==1  % needs to be done only once in this case
-        %if isa(aRecon,'cuda')
+        if ComplexPSF
+            ftRecons=ft(aRecon);
+        else
             ftRecons=rft(aRecon);
-        %else
-        %    ftRecons=ft(aRecon);
-        %end
+        end
     end
 end
 
 
 %if isa(aRecon,'cuda')
+if ComplexPSF
+    Recons=norm3D*ift(ftRecons .* myOtf);  % convolve with corresponding PSF, still in Fourier space
+else
     Recons=norm3D*rift(ftRecons .* myOtf);  % convolve with corresponding PSF, still in Fourier space
-%else
-%    Recons=norm3D*real(ift(ftRecons .* myOtf));  % convolve with corresponding PSF, still in Fourier space
-%end
+end
+    
+if IntensityData
+    ReconsSaved=Recons;
+    Recons=abssqr(Recons);  % After convolution the intensity is now calculated to be compared to the intensity data
+end
+
 % Residual: (here Cezar's i-divergence)
 switch DeconvMethod
     case 'Poisson'
@@ -145,11 +160,7 @@ switch DeconvMethod
         %myError =sum(Recons+myImg .* log(ratio));  % fast version of Czesar's i-divergence omitting constants
         %myError =sum(Recons-myImg .* log(Recons));  % fast version of Czesar's i-divergence omitting constants
         
-        %if isa(aRecon,'cuda')
-            myGrad = norm3D*rift(rft(1-ratio) .* conj(myOtf));
-        %else
-        %    myGrad = norm3D*real(ift(ft(1-ratio) .* conj(myOtf)));
-        %end
+        residuum=1-ratio;
         clear ratio
     case 'LeastSqr'
         residuum =( Recons-myImg);
@@ -158,11 +169,7 @@ switch DeconvMethod
         end
         
         myError = real(sum(residuum .* conj(residuum),DMask));  % simple least squares, but accounting for complex numbers in residuum
-        %if isa(aRecon,'cuda')
-            myGrad = norm3D*2*rift(rft(conj(residuum)) .* conj(myOtf));
-        %else
-        %    myGrad = norm3D*2*real(ift(ft(conj(residuum)) .* conj(myOtf)));
-        %end
+        residuum=2*residuum; % to account for the square
     case 'WeightedLeastSqr'
         residuum =( Recons-myImg);
         if ~isempty(DMask)
@@ -171,18 +178,29 @@ switch DeconvMethod
         
         if ~isempty(DeconvVariances)
             myError = real(sum(residuum .* conj(residuum) ./ DeconvVariances,DMask));  % simple least squares, but accounting for complex numbers in residuum
-            
-            %if isa(aRecon,'cuda')
-                myGrad = norm3D*2*rift(rft(conj(residuum ./ DeconvVariances)) .* conj(myOtf));
-            %else
-            %    myGrad = norm3D*2*real(ift(ft(conj(residuum ./ DeconvVariances)) .* conj(myOtf)));
-            %end
+            residuum=2*residuum ./ DeconvVariances;
         else
             error('If using the WeightedLeastSqr method, you need ot provide a non-empty variance array');
         end
     otherwise
         error('Unknown decvonvolution method');
 end
+
+if IntensityData
+    residuum = 2*ReconsSaved.*residuum;  % This treats goes back from the intensity world to the amplitude world
+    clear ReconsSaved;
+end
+
+if ComplexPSF  % For all types of norms it is always the convolution with the conjugate OTF at the end
+    myGrad = norm3D*ift(ft(residuum) .* conj(myOtf));
+else
+    myGrad = norm3D*rift(rft(residuum) .* conj(myOtf));
+end
+
+if ~ComplexObj
+    myGrad=real(myGrad); % Is this correct? Simply discard the imaginary part here for objects which are known to be real?
+end
+
 clear myImg;
 clear residuum;
 clear myOtf;
@@ -207,7 +225,7 @@ end
 myReg=0;
 myRegGrad=0;
  
-myLambda=RegularisationParameters(1,1); %case 'GS'  % Good's roughness penalty: Abs(Gradient ^ 2)
+myLambda=RegularisationParameters(1,1); %case 'GS'  % Gradient roughness penalty: Gradient ^ 2
 if myLambda ~= 0
     [aReg,aRegGrad]=RegularizeGS(toRegularize,BetaVals);
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
@@ -224,13 +242,13 @@ if myLambda ~= 0
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
 
-myLambda=RegularisationParameters(4,1); %case 'NegSqr'  Total variation roughness penalty (with eps)
+myLambda=RegularisationParameters(4,1); %case 'NegSqr'  Penalty for negative values
 if myLambda ~= 0
     [aReg,aRegGrad]=RegularizeNegSqr(toRegularize);
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
     % fprintf('Neg Penalty: %g\n',delta*sum(aRecon.^2.*(aRecon<0))*lambdaPenalty /prod(size(aRecon)));
 end
-myLambda=RegularisationParameters(5,1); %case 'GR'  % Good's roughness penalty: Abs(Gradient ^ 2)
+myLambda=RegularisationParameters(5,1); %case 'GR'  % Good's roughness penalty: Gradient ^ 2/f
 if myLambda ~= 0
     [aReg,aRegGrad]=RegularizeGR(toRegularize,BetaVals);
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
@@ -242,9 +260,9 @@ if ~isempty(ToEstimate) && ToEstimate==1    % estimate the illumination
     myGrad= myGrad .*  aRecon;    % multiplication with the sample density (rho) for estimating the gradient of myillu
     agradIdx=viewNum-1-(currentSumCondIdx-1);
     if viewNum ~= myillu_sumcond{currentSumCondIdx}
-        grad(:,:,:,agradIdx)=myGrad + myRegGrad;
+        thegrad(:,:,:,agradIdx)=myGrad + myRegGrad;
     else  % The last residuum has to be subtracted from each of the other residuals, see eq. S14 and S4 in supplementary methods of DOI: 10.1038/NPHOTON.2012.83
-        grad(:,:,:,prevSumCondGradIdx:agradIdx-1)=grad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
+        thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)=thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
         prevSumCondGradIdx=agradIdx;
         currentSumCondIdx = currentSumCondIdx +1;
     end
@@ -255,10 +273,10 @@ else
         myGrad=myGrad .*  myIllum;
     end
     if viewNum == 1       % object penalty needs to be accounted for only once
-        grad=grad+ myGrad +  myRegGrad; 
+        thegrad=thegrad+ myGrad +  myRegGrad; 
         err=err+myError + myReg;    % was cleared before the for-loop
     else
-        grad=grad+myGrad;   % was cleared before the for-loop
+        thegrad=thegrad+myGrad;   % was cleared before the for-loop
         err=err+myError;    % was cleared before the for-loop
     end
 end
@@ -272,7 +290,11 @@ err = double(NormFac*err);
 
 %dipshow(7,grad(:,:,7))
 % Line below also takes care of possible crunch operation (ToEstimate is 1 and myillu_mask exists
-grad=convertGradToVec(NormFac*grad);    % converts the dip_image back to a linear matlab vector
+thegrad=convertGradToVec(NormFac*thegrad);    % converts the dip_image back to a linear matlab vector
+
+if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
+    thegrad = 2*savedInput.*thegrad;  % To account for the fact that the auxilary function is what is iterated and the object estimate is the square of it
+end
 
 %fprintf('Val: %g, Penalty %g, Gradien Norm: %g Penalty %g\n',err, lambdaPenalty*myReg,norm(grad),norm(lambdaPenalty * double(myRegGrad(:))));
 %fprintf('Val: %g, Penalty %g\n',err, lambdaPenalty*myReg);

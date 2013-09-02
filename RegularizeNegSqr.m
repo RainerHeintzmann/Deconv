@@ -4,5 +4,5 @@
 % myRegGrad : Gradient
 
 function [myReg,myRegGrad]=RegularizeTV(toRegularize)
-myReg = sum(toRegularize.^2.*(toRegularize<0));
+myReg = sum(abssqr(toRegularize).*(toRegularize<0));  % Just affects the real part
 myRegGrad = 2*toRegularize .* (toRegularize<0);

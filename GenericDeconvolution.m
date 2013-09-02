@@ -2,6 +2,9 @@
 % psf: Point spread function to deconvolve with
 % NumIter: Iterations to perform. Optionally the subiterations for initial Object iterations (2) and successive object (3) and illumination iterations (4) can be given.
 % Method: One of 'LeastSqr', 'WeightedLeastSqr' and 'Poisson', defining the norm of the data-simulation agreement to optimize
+% In this Method list also the following flags are possible (without extra parameters):
+%         'ForcePos',[] : Will make the object the square of an auxiliary function, which is then estimated
+%         'Complex',[] : Will allow the object to be an aplitude object. Note that even for complex valued data the object can remain to be real.
 % Update: Default: [] uses 'lbfgs', This describes the minimization algorithm (update scheme) to use. You can use all the ones that minFunc allows, but in addition also 'RL' for
 % RichardsonLucy multiplicative (EM) Algorithm, or 'RLL' for a Wolfe line search along the Richardson Lucy update direction
 % Regularisation : A cell array containing the regularisers to use and their respective arguments. E.g. {'TV',[0.02 1.0]} will use total variation with a lambda of 0.02 and an epsilon of 1.0
@@ -17,7 +20,7 @@
 %
 % Requires: DipImage and Mark Schmid's minFunc (http://www.cs.ubc.ca/~schmidtm/Software/minFunc.html).
 % It can work with CudaMat to accelerate the deconvolution 
-% In the file polyinterp.m line 103 needs to be cahnged to:
+% In the file polyinterp.m line 103 needs to be changed to:
 % for qq = 1:length(cp); xCP = cp(qq);
 % If everything is prepared run:
 % speedtestDeconv(0)
@@ -61,6 +64,11 @@ global NormFac;  % normalisation factor
 global myillu_sumcond;
 % global TheObject;
 global cuda_enabled;  % also to see if cuda is installed
+global ComplexObj;    % Can the object to estimate be complex valued?
+global IntensityData;  % Is the supplied data the abs square of the object to estimate?
+global ForcePos;
+ForcePos=0;         % Will only be set to one in the ParseRegularisation routine, if chosen.
+global ComplexPSF; % will be set, if PSF is complex valued
 
 if nargin < 11
     keepExtendedStack=0;
@@ -102,9 +110,12 @@ if size(NumIter) < 4
     NumIter(4) = 5;  % Default value for SIM iterations. For Speckles use 15
 end
 
-[RegObj,RegIllu]=ParseRegularisation(Regularisation);
+[RegObj,RegIllu]=ParseRegularisation(Regularisation);  % Also sets global variable such as ForcePos and ComplexObj
 RegularisationParameters=RegObj;
 
+if Update(1)=='B'
+    myillu=[];  % force the illumination to be empty. Also for the correct normalizations of start vectors
+end
 %%
 % somehow the line below gets overwritten, so we have to set the boudary
 % in the inner loop "GenericErrorAndDeriv"
@@ -246,23 +257,43 @@ end
 %% Normalize PSF
 mysum=0;
 for v=1:numel(psf)
-    mysum=mysum+sum(psf{v});
+    if ~ComplexPSF  % complex valued PSFs are often 0 on average. It is thus normalized such that it's abssqr has a sum of one
+        mysum=mysum+sum(psf{v});
+    else
+        mysum=mysum+sum(psf{v}*conj(psf{v}));
+    end
 end
 for v=1:length(psf)
-    psf{v}=psf{v}/mysum;  % Forces the PSF to be normalized (over all sup-PSFs)
+    if ~ComplexPSF  % complex valued PSFs are often 0 on average. It is thus normalized such that it's abssqr has a sum of one
+        psf{v}=psf{v}/mysum;  % Forces the PSF to be normalized (over all sup-PSFs)
+    else
+        psf{v}=psf{v}/sqrt(mysum);  % Forces the PSF to be normalized 
+    end
 end
 clear mysum;
-
 
 otfrep=cell(numel(psf),1);
 
 
 %%
+if isreal(psf{1})
+    ComplexPSF=0;
+else
+    ComplexPSF=1;
+end
 for v=1:numel(psf)
     if useCuda
-       otfrep{v}=rft(fftshift(cuda(psf{v})));  % The fft shift is necessary, since the rft assumes a different coordinate zero position
+       if ComplexPSF
+           otfrep{v}=ft(cuda(psf{v}));  
+       else
+           otfrep{v}=rft(fftshift(cuda(psf{v})));  % The fft shift is necessary, since the rft assumes a different coordinate zero position
+       end
     else
-       otfrep{v}=rft(dip_image(fftshift(double(psf{v}))));
+       if ComplexPSF
+           otfrep{v}=ft(psf{v});
+       else
+           otfrep{v}=rft(dip_image(fftshift(double(psf{v})))); % The fft shift is necessary, since the rft assumes a different coordinate zero position
+       end
     end
     clear psf{v};  % These are not needed any longer. Free them, especially if converted to cuda
 end
@@ -292,22 +323,59 @@ else
 end
 
 mysum=0;
+if ~isempty(DeconvMask)
+    myDivisor=sum(DeconvMask,DeconvMask);
+else
+    myDivisor=prod(OrigSize);
+end
 for v=1:length(myim)
     if ~isempty(myillu)
-        mysum=mysum+sum(myim{v})/prod(OrigSize)/(sum(myillu{v})/prod(OrigSize));  % use the old size because of the effect of zero padding and the normalisation of the psf
+        mysum=mysum+sum(myim{v},DeconvMask)/myDivisor/(sum(myillu{v})/prod(OrigSize));  % use the old size because of the effect of zero padding and the normalisation of the psf
     else
-        mysum=mysum+sum(myim{v})/prod(OrigSize);  % use the old size because of the effect of zero padding and the normalisation of the psf
+        mysum=mysum+sum(myim{v},DeconvMask)/myDivisor;  % use the old size because of the effect of zero padding and the normalisation of the psf
     end
 end
 mymean=mysum/length(myim);  % Force it to be real
 
-if (1)
-    startVec=NumViews*(double(repmat(mymean,[1 prod(size(myim{1}))])))'; 
+if RegObj(6,1)  % means reuse previous result
+    startVec=aRecon;
 else
-    global para;
-    startVec=NumViews*para.res_object_resampled * mymean / mean(para.res_object_resampled)';   % To test it on SIM simulations
-    startVec=convertGradToVec(startVec);
+    if (1)
+        if ~IntensityData
+            startVec=NumViews*(double(repmat(mymean,[1 prod(size(myim{1}))])))';
+        else
+            mysum=0;
+            for v=1:length(myim)
+                mysum=mysum+sum(myim{v}.*myim{v})/prod(OrigSize);  % use the old size because of the effect of zero padding and the normalisation of the psf
+            end
+            mm=sqrt(mysum/length(myim));  % Force it to be real
+            startVec=NumViews*(double(repmat(mm,[1 prod(size(myim{1}))])))';
+        end
+    else
+        global para;
+        startVec=NumViews*para.res_object_resampled * mymean / mean(para.res_object_resampled)';   % To test it on SIM simulations
+    end
+    
+    if (~ComplexObj)
+        startVec=abs(startVec); % sqrt will be applied later if needed. This is only to force it to be a real valued quantity even if the data is complex
+    end
+    if (IntensityData)
+        for v=1:length(myim)
+            if ~isreal(myim{1})
+                error('For intensity data as specified in the flag, all images need to be real valued!');
+            end
+        end
+        % startVec=startVec*exp(i*pi/4);  % Maybe random phases should be supplied as a start?
+        if ComplexObj
+            startVec=sqrt(startVec)+1e-8*i;  % Maybe random phases should be supplied as a start?
+        else
+            startVec=sqrt(startVec);  % Maybe random phases should be supplied as a start?
+        end
+    end
 end
+
+startVec=convertGradToVec(startVec);  % Changes the format to Matlab and packs complex numbers appropriately
+
 % Randomized starting vector helps sometime for Poisson, but seems bad as HF noise can end in Checkerboard patterns
 % startVec=startVec + mymean*rand(size(startVec))/10;   % Introduce some extra noise. This sometimes helps the initial gradient
 
@@ -345,7 +413,6 @@ if Update(1)~='B'
     end
 else % Do a blind estimation of the unknown intensity distribution
 %% Do some sanity checks here
-myillu=[];  % force the illumination to be empty now
 if ~isempty(myillu_sumcond)
     for n=1:numel(myillu_sumcond)
         if myillu_sumcond{n}<2
@@ -365,23 +432,28 @@ end
         if isempty(myillu_sumcond)
             myillu_sumcond={length(myim)};
         end
-        VecIllu = repmat(myim{1}*0+1,[1 1 1 numel(myim)-length(myillu_sumcond)]);
-%         if isa(myim{1},'cuda')
-%             VecIllu=ones_cuda(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
-%         else
-%             VecIllu=ones(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
-%         end
-        %%   
-        ToEstimate=1;
-        VecIllu=convertGradToVec(VecIllu);
-        ToEstimate=0;
-        %%
-        sumSqr=0;
-        for v=1:length(myim)
-            myillu{v}=myim{v}*0+1;  % start with uniform illumination
-            %myillu{v}=myim{v}*0+2*rand(size(myim{1},1),size(myim{1},1));  % start with uniform illumination
-            sumSqr=sumSqr+sum(myim{v}.*myim{v});   % for calculating the normalisation
-            % VecIllu(1+DataSize*(v-1):DataSize*v)=(double(reshape(myillu{v},[DataSize 1])))';
+
+        if RegIllu(6,1)
+            VecIllu=myillu;
+        else
+            VecIllu = repmat(myim{1}*0+1,[1 1 1 numel(myim)-length(myillu_sumcond)]);
+            %         if isa(myim{1},'cuda')
+            %             VecIllu=ones_cuda(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
+            %         else
+            %             VecIllu=ones(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
+            %         end
+            %
+            ToEstimate=1;
+            VecIllu=convertGradToVec(VecIllu);
+            ToEstimate=0;
+            %
+            sumSqr=0;
+            for v=1:length(myim)
+                myillu{v}=myim{v}*0+1;  % start with uniform illumination
+                %myillu{v}=myim{v}*0+2*rand(size(myim{1},1),size(myim{1},1));  % start with uniform illumination
+                sumSqr=sumSqr+sum(myim{v}.*myim{v});   % for calculating the normalisation
+                % VecIllu(1+DataSize*(v-1):DataSize*v)=(double(reshape(myillu{v},[DataSize 1])))';
+            end
         end
         myRes=startVec;
         aRecon=convertVecToObj(myRes,size(myim{1}));

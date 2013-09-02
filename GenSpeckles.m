@@ -1,3 +1,9 @@
+% [intensities,amplitudes]=GenSpeckles(asize,relradius,dz,NumSpeck)  : generates a speckle pattern by random phase values
+% asize : image size
+% relradius : aperture radius
+% dz : z distance
+% NumSpeck : number of speckle patterns to generate
+
 function [intensities,amplitudes]=GenSpeckles(asize,relradius,dz,NumSpeck)  % generates a speckle pattern by random phase values
 
 intensities=cell(NumSpeck,1);

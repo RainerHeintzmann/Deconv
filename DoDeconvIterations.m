@@ -6,6 +6,13 @@
 %       others : all other choices are handed over to the minfuc routine (e.g. use 'lbfgs')
 
 function [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter)
+global ForcePos;
+global ToEstimate;
+
+if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
+    startVec=sqrt(abs(startVec)); % from now on the auxilary function is estimated and obj is the abs sqr of it.
+end
+
 moreinfo='';
 if isempty(Update)
     Update='lbfgs';
@@ -107,4 +114,8 @@ switch Update
 % options=struct('DerivativeCheck','off','Method','cg','Display',1,'verbose',1,'debug',1,'notify',1,'optTol',1e-8,'progTol',1e-8,'MaxIter',NumIter,'MaxFunEvals',NumIter*2,'LS_type',1,'LS_interp',1,'LS_init',3,'t0',1e5); 
   options=struct('useMex',0,'doPlot',1,'cgUpdate',1,'CORR',3,'DerivativeCheck','off','Method',Update,'Display',1,'verbose',1,'debug',1,'notify',1,'optTol',1e-19,'progTol',1e-19,'MaxIter',NumIter,'MaxFunEvals',NumIter*2,'LS_type',1,'LS_interp',1,'LS_init',3,'t0',1.0); 
     [myRes,msevalue,moreinfo,myoutput]=minFunc(@GenericErrorAndDeriv,startVec,options); % @ means: 'Function handle creation'     
+end
+
+if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
+    myRes=abssqr(myRes); % to obtain the all positive object estimate
 end
