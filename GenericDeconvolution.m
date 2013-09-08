@@ -65,9 +65,9 @@ global myillu_sumcond;
 % global TheObject;
 global cuda_enabled;  % also to see if cuda is installed
 global ComplexObj;    % Can the object to estimate be complex valued?
-global IntensityData;  % Is the supplied data the abs square of the object to estimate?
-global ForcePos;
-ForcePos=0;         % Will only be set to one in the ParseRegularisation routine, if chosen.
+%global IntensityData;  % Is the supplied data the abs square of the object to estimate?
+%global ForcePos;
+%ForcePos=0;         % Will only be set to one in the ParseRegularisation routine, if chosen.
 global ComplexPSF; % will be set, if PSF is complex valued
 
 if nargin < 11
@@ -341,7 +341,7 @@ if RegObj(6,1)  % means reuse previous result
     startVec=aRecon;
 else
     if (1)
-        if ~IntensityData
+        if ~RegObj(8,1) % IntensityData
             startVec=NumViews*(double(repmat(mymean,[1 prod(size(myim{1}))])))';
         else
             mysum=0;
@@ -359,7 +359,7 @@ else
     if (~ComplexObj)
         startVec=abs(startVec); % sqrt will be applied later if needed. This is only to force it to be a real valued quantity even if the data is complex
     end
-    if (IntensityData)
+    if (RegObj(8,1)) % IntensityData
         for v=1:length(myim)
             if ~isreal(myim{1})
                 error('For intensity data as specified in the flag, all images need to be real valued!');
@@ -493,13 +493,14 @@ end
             % aRecon=TheObject;
             if n==1
                 NormFac=1;
+                RegularisationParameters=RegIllu;
                 [val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation
                 IlluNorm=1/(norm(abs(agrad))/numel(agrad));
-                %NormFac=IlluNorm;
+                NormFac=IlluNorm;
                 %[val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation
                 %(norm(agrad)/numel(agrad))
             end
-            NormFac=IlluNorm*6e-5;
+            %NormFac=IlluNorm*6e-5;
             % NormFac=1/sumSqr;
             % NormFac=0.1; % /sumSqr;
             fprintf('\n\nIterating Illuination, cycle %d\n',n);

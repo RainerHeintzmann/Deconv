@@ -249,8 +249,12 @@ end
 %global EvolIllu; %Aurelie 26022013
 %global EvolObj; %Aurelie 26022013
 MyObjReg={'NegSqr',0.001;'GR',0.02};
-MyIlluReg={'NegSqr',0.001};
+MyObjReg={'ForcePos',[];'GR',0.02};
+MyIlluReg={};
+%MyIlluReg={'NegSqr',0.001};
+MyIlluReg={'ForcePos',[]};
 useCuda=0;
+NumIter=[50 5 25 5];
 
 [myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
 resIllu=cat(4,myillu{:});

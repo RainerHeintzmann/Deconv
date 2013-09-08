@@ -1,10 +1,10 @@
 % [RegMat1,RegMat2]=ParseRegularisation(mycells) : Parses the parameter strings into one or two matrices
 function [RegMat1,RegMat2]=ParseRegularisation(mycells,toReg)
-global ComplexObj;
-ComplexObj=0;
-global IntensityData;
-IntensityData=0;
-global ForcePos;
+%global ComplexObj;
+%ComplexObj=0;
+%global IntensityData;
+%IntensityData=0;
+%global ForcePos;
 if nargin<2 
     toReg=0; % meaning object
 end
@@ -48,7 +48,7 @@ for n=1:size(mycells,1)
             if ~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda'))
                 error('When submitting a starting image for object or illumination, it has to be a dip_image or cuda type');
             end
-            RegMat1(6,1)=1;
+            RegMat1(6,1)=1;  % Reuse what is written into aRecon below
             if toReg==0
                 global aRecon;
                 aRecon=mycells{n,2};
@@ -57,11 +57,14 @@ for n=1:size(mycells,1)
                 myillu=mycells{n,2};
             end
         case 'Complex'
-            ComplexObj=1;
+            RegMat1(7,1)=1;  % Reuse what is in aRecon
+            %ComplexObj=1;
         case 'IntensityData'
-            IntensityData=1;
+            RegMat1(8,1)=1;  % Reuse what is in aRecon
+            %IntensityData=1;
         case 'ForcePos'
-            ForcePos=1;
+            RegMat1(9,1)=1;  % Reuse what is in aRecon
+            %ForcePos=1;
         otherwise
             error('For regularisation only TV, AR, GR, Complex, IntensityData, ForcePos, NegSqr Reuse and StartImg are allowed');
     end

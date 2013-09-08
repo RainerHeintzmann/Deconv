@@ -35,9 +35,9 @@ global ToEstimate;   % This flag controls what to estimate in this iteration ste
 global aRecon;   % Here the sample is stored, if the estimation is illumination or psf.
 global NormFac;  % normalisation factor
 global myillu_sumcond;   % denotes the positions in myillu for which each the sum condition (down to previous mention) are fullfilled.
-global ForcePos;
+%global ForcePos;
 global ComplexPSF; % If this flag is set, the PSF is complex and Fourier-transforms are done fully complex
-global IntensityData; % If this flag is active, the data is interpreted as the abs square of the image amplitude (after convolution with the coherent asf)
+%global IntensityData; % If this flag is active, the data is interpreted as the abs square of the image amplitude (after convolution with the coherent asf)
 global ComplexObj; % If active, the object is assumed to be complex valued. 
 
 %delta= 100; % Weight for the negativtiy penalty
@@ -57,23 +57,30 @@ DataLength=prod(DataSize);
 %if length(DataSize) < 3
 %    DataSize(3) = 1;
 %end
-if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
-    savedInput=myinput;
-    myinput=abssqr(myinput); % converts the auxilary function back to the all positive object
-end
 
 if isempty(ToEstimate) || ToEstimate==0
     % aRecon=reshape(dip_image(myinput','single'),DataSize);  % The reconstruction can be up to 3D, whereas the data might be 4D
     aRecon=convertVecToObj(myinput,DataSize);  % converts the matlab vector into a dipimage object
     thegrad=newim(aRecon);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
-elseif ToEstimate==1
+    if RegularisationParameters(9,1)  % ForcePos, Forces object to be positive by estimating only its squareroot
+        savedInput=aRecon;
+        aRecon=abssqr(aRecon); % converts the auxilary function back to the all positive object
+    end
+elseif ToEstimate==1  % Illumination intensity
     convertVecToIllu(myinput);  % will set the myillu{n} including the last one which is estimated from the previous ones
     asize=size(myillu{1});
     if length(asize) < 3
         asize(length(asize)+1:3)=1;
     end
     thegrad=newim([asize (length(myillu)-length(myillu_sumcond))]);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
-else
+    if RegularisationParameters(9,1) 
+        savedInput=squeezeIllu();
+        %savedInput=newim([asize (length(myillu)-length(myillu_sumcond))]);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
+        for n=1:size(myillu,2)
+            myillu{n}=abssqr(myillu{n}); % converts the auxilary function back to the all positive object
+        end
+    end
+ else
     error('Other estimation methos not implemented yet.');
 end
 err=0;           % clears the errorsum
@@ -134,7 +141,7 @@ else
     Recons=norm3D*rift(ftRecons .* myOtf);  % convolve with corresponding PSF, still in Fourier space
 end
     
-if IntensityData
+if RegularisationParameters(8,1) % IntensityData
     ReconsSaved=Recons;
     Recons=abssqr(Recons);  % After convolution the intensity is now calculated to be compared to the intensity data
 end
@@ -186,7 +193,7 @@ switch DeconvMethod
         error('Unknown decvonvolution method');
 end
 
-if IntensityData
+if RegularisationParameters(8,1) % IntensityData
     residuum = 2*ReconsSaved.*residuum;  % This treats goes back from the intensity world to the amplitude world
     clear ReconsSaved;
 end
@@ -290,11 +297,13 @@ err = double(NormFac*err);
 
 %dipshow(7,grad(:,:,7))
 % Line below also takes care of possible crunch operation (ToEstimate is 1 and myillu_mask exists
-thegrad=convertGradToVec(NormFac*thegrad);    % converts the dip_image back to a linear matlab vector
-
-if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
+if RegularisationParameters(9,1) % ForcePos, Forces object to be positive by estimating only its squareroot
+    % && (isempty(ToEstimate) || ToEstimate==0) 
     thegrad = 2*savedInput.*thegrad;  % To account for the fact that the auxilary function is what is iterated and the object estimate is the square of it
 end
+
+thegrad=convertGradToVec(NormFac*thegrad);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+
 
 %fprintf('Val: %g, Penalty %g, Gradien Norm: %g Penalty %g\n',err, lambdaPenalty*myReg,norm(grad),norm(lambdaPenalty * double(myRegGrad(:))));
 %fprintf('Val: %g, Penalty %g\n',err, lambdaPenalty*myReg);

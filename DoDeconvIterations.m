@@ -6,11 +6,19 @@
 %       others : all other choices are handed over to the minfuc routine (e.g. use 'lbfgs')
 
 function [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter)
-global ForcePos;
+% global ForcePos;
+global RegularisationParameters;  % This is a matrix with all possible regularisation lambdas (and other parameters)
 global ToEstimate;
 
-if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
-    startVec=sqrt(abs(startVec)); % from now on the auxilary function is estimated and obj is the abs sqr of it.
+if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0) ForcePos
+    if (isempty(ToEstimate) || ToEstimate==0)
+        startVec=sqrt(abs(startVec));
+    else
+        global myillu;
+        convertVecToIllu(startVec);  % writes the result into myillu
+        startVec=sqrt(abs(squeezeIllu())); % reads myillu and generates the 
+        startVec=convertGradToVec(startVec);
+    end
 end
 
 moreinfo='';
@@ -116,6 +124,13 @@ switch Update
     [myRes,msevalue,moreinfo,myoutput]=minFunc(@GenericErrorAndDeriv,startVec,options); % @ means: 'Function handle creation'     
 end
 
-if ForcePos && (isempty(ToEstimate) || ToEstimate==0)
-    myRes=abssqr(myRes); % to obtain the all positive object estimate
+if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0)  % ForcePos
+    if (isempty(ToEstimate) || ToEstimate==0)
+        myRes=abssqr(myRes); % to obtain the all positive object estimate
+    else
+        global myillu;
+        convertVecToIllu(myRes);  % writes the result into myillu
+        myRes=abssqr(squeezeIllu()); % to obtain the all positive illumination estimate
+        myRes=convertGradToVec(myRes);
+    end
 end
