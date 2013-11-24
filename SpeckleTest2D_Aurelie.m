@@ -196,7 +196,8 @@ myDeconvC=GenericDeconvolution(img,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1
 % 3) Wide-field
 myillu=[];
 img2=squeeze(sum(cat(4,img{:}),[],4)); %Wide-field image
-myDeconvWF_GR=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'GR',0.2;'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
+myDeconvWF=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'ForcePos',0},[1,1,1],[0 0],[],useCuda); 
+myDeconvWF_GR=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'GS',0.02;'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
 % st=cat(4,myDeconvWF,myDeconvC,obj,myspeckles{1},img{1}) %Display result
 
 end %end of comparison
@@ -232,13 +233,7 @@ if use_mask
 %dip_setboundary('periodic')  % Establishes Periodic Boudary conditions.
 for v=1:numel(myspeckles)
     MaskThresh=5;
-    %if (useCuda)
-        %myillu_mask{v}=riftshift(cuda(dilation(dip_image_force(abs(rftshift(rft(cuda(myspecklesIdeal{v}))))> MaskThresh),AberrationTolerance)));
-    %myillu_mask{v}=riftshift(dilation(dip_image_force(abs(rftshift(rft(myspecklesIdeal{v})))> MaskThresh),AberrationTolerance));
     myillu_mask{v}=riftshift(dilation(dip_image(abs(rftshift(rft(myspecklesIdeal{v})))> MaskThresh),AberrationTolerance));
-    %else
-    %    myillu_mask{v}=dilation(abs(ft(myspecklesIdeal{v}))> MaskThresh,AberrationTolerance);
-    % end
 end
 end
 
@@ -248,11 +243,11 @@ end
 
 %global EvolIllu; %Aurelie 26022013
 %global EvolObj; %Aurelie 26022013
-MyObjReg={'NegSqr',0.001;'GR',0.02};
-MyObjReg={'ForcePos',[];'GR',0.02};
+%MyObjReg={'NegSqr',0.001;'GR',0.02};
+MyObjReg={'ForcePos',[];};
 MyIlluReg={};
 %MyIlluReg={'NegSqr',0.001};
-MyIlluReg={'ForcePos',[]};
+%MyIlluReg={'ForcePos',[]};
 useCuda=0;
 NumIter=[50 5 25 5];
 
@@ -311,7 +306,7 @@ if use_obj=='Spoke'
     end
     RadialContrast(myDeconvBlind,NumSpokes/2,'m'); % Blind deconvolution
 %     axis([0 100 -.1 1.5]) % for 40 spokes
-    axis([0 50 -.1 1.7]) % for 20 spokes
+    axis([0 80 -.1 1.7]) % for 20 spokes
     legend('Object,','Known Illum','WF-Deconv','Blind estimation');
 end
 

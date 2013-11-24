@@ -2,10 +2,10 @@ function out=convertGradToVec(grad)
 global ToEstimate;
 global myillu_mask;
 global myillu_sumcond;
-global ComplexObj;
+
 if isempty(ToEstimate) || ToEstimate==0 || isempty(myillu_mask) || numel(myillu_mask) < 1
     out=(reshape(double(grad),[prod(size(grad)) 1]));   % this applies to object as well as unpacked (4D) illumination distributions
-    if ComplexObj
+    if ~isreal(grad)
         out=[real(out);imag(out)]; % unpack complex to two reals
     end
 elseif ToEstimate==1 &&  ~isempty(myillu_mask) && numel(myillu_mask) >= 1

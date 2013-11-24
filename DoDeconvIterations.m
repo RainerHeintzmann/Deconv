@@ -10,16 +10,16 @@ function [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,N
 global RegularisationParameters;  % This is a matrix with all possible regularisation lambdas (and other parameters)
 global ToEstimate;
 
-if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0) ForcePos
-    if (isempty(ToEstimate) || ToEstimate==0)
-        startVec=sqrt(abs(startVec));
-    else
-        global myillu;
-        convertVecToIllu(startVec);  % writes the result into myillu
-        startVec=sqrt(abs(squeezeIllu())); % reads myillu and generates the 
-        startVec=convertGradToVec(startVec);
-    end
-end
+% if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0) ForcePos
+%     if (isempty(ToEstimate) || ToEstimate==0)
+%         startVec=sqrt(abs(startVec));
+%     else
+%         global myillu;
+%         convertVecToIllu(startVec);  % writes the result into myillu
+%         startVec=sqrt(abs(squeezeIllu())); % reads myillu and generates the 
+%         startVec=convertGradToVec(startVec);
+%     end
+% end
 
 moreinfo='';
 if isempty(Update)
@@ -58,7 +58,7 @@ switch Update
         NumMidSteps=NumIter-length(startSteps)-length(endSteps);
         fullAlphaVec=repmat(midSteps,[1 floor(NumMidSteps/length(midSteps))]);
         fullAlphaVec(end+1:NumMidSteps)=midSteps(1:NumMidSteps-length(fullAlphaVec));
-        fullAlphaVec=[startSteps fullAlphaVec endSteps];
+        fullAlphaVec=[startSteps fullAlphaVec endSteps] / 1.5;
         for n=1:NumIter
             [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
             alpha=fullAlphaVec(n);
@@ -92,7 +92,8 @@ switch Update
     t=1; % 0.005;  % initial step size
     eps=1e-5;
     n=1;
-    while n<NumIter
+    minstep=1e-7;
+    while n<=NumIter
         d= -myRes.*mygrad;  % Direction in which the RL algorithm would decent
         gtd = mygrad'*d;    % Directional derivative
         [t,msevalue,mygrad,LSfunEvals] = WolfeLineSearch(myRes,t,d,msevalue,mygrad,gtd,c1,c2,LS_interp,LS_multi,25,progTol,debug,doPlot,1,@GenericErrorAndDeriv);
@@ -100,6 +101,10 @@ switch Update
         myRes(myRes<eps)=eps;
         n=n+LSfunEvals;  % Count the line search steps towards total number of iterations
         fprintf('Iteration %d, Linesearch-Richardson-Lucy iteration: Val %g, norm(grad) %g, step length %g\n',n,msevalue,norm(mygrad),t);
+        if norm(t) < minstep
+            fprintf('Steplength below lower limit %g. Stopping to iterate.\n',minstep);
+            break;
+        end
         if t< 1
             t=1;
         end
@@ -124,13 +129,13 @@ switch Update
     [myRes,msevalue,moreinfo,myoutput]=minFunc(@GenericErrorAndDeriv,startVec,options); % @ means: 'Function handle creation'     
 end
 
-if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0)  % ForcePos
-    if (isempty(ToEstimate) || ToEstimate==0)
-        myRes=abssqr(myRes); % to obtain the all positive object estimate
-    else
-        global myillu;
-        convertVecToIllu(myRes);  % writes the result into myillu
-        myRes=abssqr(squeezeIllu()); % to obtain the all positive illumination estimate
-        myRes=convertGradToVec(myRes);
-    end
-end
+%if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0)  % ForcePos
+%    if (isempty(ToEstimate) || ToEstimate==0)
+%        myRes=abssqr(myRes); % to obtain the all positive object estimate
+%    else
+%        global myillu;
+%        convertVecToIllu(myRes);  % writes the result into myillu
+%        myRes=abssqr(squeezeIllu()); % to obtain the all positive illumination estimate
+%        myRes=convertGradToVec(myRes);
+%    end
+%end

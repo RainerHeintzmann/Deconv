@@ -16,7 +16,7 @@ myint=noise(myint/max(myint)*maxphotons,'poisson');
 usecuda=0;
 % deconvolutions using measured amplitudes
 res=GenericDeconvolution(dat,asf,100,'LeastSqr','lbfgs',{'Complex',[]},[1 1],[0 0],[],usecuda)
-resTV=GenericDeconvolution(dat,asf,100,'LeastSqr','lbfgs',{'TV',[0.01,0];'Complex',[]},[1 1],[0 0],[],usecuda)
+resTV=GenericDeconvolution(dat,asf,100,'LeastSqr','lbfgs',{'TV',[0.001,0];'Complex',[]},[1 1],[0 0],[],usecuda)
 %%
 % try to get arbitrary amplitudes from intensity data
 resA=GenericDeconvolution(myint,asf,100,'LeastSqr','lbfgs',{'Complex',[];'IntensityData',[];},[1 1],[0 0],[],usecuda);
@@ -58,6 +58,10 @@ myint=abssqr(myamp);
 usecuda=0;
 resamp=GenericDeconvolution(myamp,asf,20,'LeastSqr','lbfgs',{'Complex',[]},[1 1 1],[0 0 0],[],usecuda)
 
-resamp=GenericDeconvolution(myamp,asf,20,'LeastSqr','lbfgs',{'TV',[1,0]},[1 1 10],[0 0 0],[],usecuda)
-
+%resamp2=GenericDeconvolution(myamp,asf,20,'LeastSqr','lbfgs',{'TV',[1,0];'ForcePos',[]},[1 1 10],[0 0 0],[],usecuda)
+%resamp2=GenericDeconvolution(myamp,asf,20,'LeastSqr','lbfgs',{'ForcePos',[];'StartImg',abssqr(resamp);},[1 1 1],[0 0 0],[],usecuda)
+resamp2=GenericDeconvolution(myamp,asf,20,'LeastSqr','lbfgs',{'ForcePos',[];'StartImg',abssqr(resamp);'GS',1},[1 1 1],[0 0 0],[],usecuda)
+ 
 recon=GenericDeconvolution(myint,asf,20,'LeastSqr','lbfgs',{'IntensityData',[];},[1 1 1],[0 0 0],[],usecuda)
+
+cat(4,myint,gaussf(obj,[1 1 2]),abssqr(resamp),abssqr(resamp2))

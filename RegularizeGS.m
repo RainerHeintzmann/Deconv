@@ -1,4 +1,5 @@
 % [myReg,myRegGrad]=RegularizeGS(toRegularize,BetaVals) computes a Gradient squared regularisation. This is similar to Good's roughness but not the same
+% penalty=|grad(f)|^2
 % toRegularize : 2D or 3D array to regularize
 % myReg : Penalty value
 % myRegGrad : Gradient

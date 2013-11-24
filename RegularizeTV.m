@@ -1,4 +1,5 @@
 % [myReg,myRegGrad]=RegularizeTV(toRegularize,BetaVals,epsR) computes Total variation regularisation
+% penalty = sqrt(|grad(f)|^2+epsR)
 % toRegularize : 2D or 3D array to regularize
 % myReg : Penalty value
 % myRegGrad : Gradient
