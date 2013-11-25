@@ -78,6 +78,13 @@ for n=1:size(mycells,1)
             RegMat1(5,2)=1e-4;
             if numel(mycells{n,2}) > 1
                 RegMat1(5,2)=mycells{n,2}(2);  % optional modified Good's roughness
+            else
+                RegMat1(5,2)=1e-4;  % default value for nominator regularisation
+            end
+            if numel(mycells{n,2}) > 2
+                RegMat1(5,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
+            else
+                RegMat1(5,3)=0;  % default value: no convolution
             end
         case 'CO'  % Conchello Regularisation. Args are : Lambda
             RegMat1(11,1)=mycells{n,2};

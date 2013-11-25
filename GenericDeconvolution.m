@@ -11,11 +11,11 @@
 %       In the case of blind deconvolution two such respective arrays have to be provided. E.g. {{'TV',[0.02 1.0];'NegSqr',0.05},{'NegSqr'}}.
 % In this Regularization list also the following flags are possible:
 %       'TV',[lambda, epsilon]: Total variation modified according to Ferreol Soulez et al. Blind deconvolution of 3D data in wide field fluorescence microscopy
-%                               choose epsilon=0 for standard TV
-%       'GS',[lambda]: Gradient squared regularisation
-%       'GR',lambda: Good's roughness regularisation
-%       'CO',lambda: Conchello's intensity^2 regularisation
-%       'AR',[lambda,gamma]: EM-regularization according to Arigovindan et al., PNAS, 2013
+%                               choose epsilon=0 for standard TV. penalty = sqrt(|grad(f)|^2+epsR)
+%       'GS',[lambda]: Gradient squared regularisation. penalty= |Grad(f)|^2
+%       'GR',lambda: Good's roughness regularisation. penalty= |Grad(f)|^2 / (|f|+epsR)
+%       'CO',lambda: Conchello's |f|^2 regularisation (Gaussian prior)
+%       'AR',[lambda,gamma]: EM-regularization according to Arigovindan et al., PNAS, 2013. penalty=ln(epsR+ (|f|^2+ SumHessianSqr)),  SumHessianSqr= (d^2/dxdx f)^2 + (d^2/dydy f)^2+ (2d^2/dxdy f)^2
 %       'Bg', value: Fixed background value (to get the Poisson Statistics right)
 %       'ForcePos',[] : Will make the object the square of an auxiliary function, which is then estimated
 %       'Complex',[] : Will allow the object to be an aplitude object. Note that even for complex valued data the object can remain to be real.
