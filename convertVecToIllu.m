@@ -1,4 +1,7 @@
-function res=convertVecToIllu(myinput)
+% function res=convertVecToIllu(myinput) : Converts a vector of real-space illumination data 
+
+function res=convertVecToIllu(myinput) 
+
 global myillu; % is overwritten!! To save memory
 global myim;
 global myillu_sumcond;
@@ -21,7 +24,7 @@ currentSumCondIdx=1;
 PSize=DataSize;PSize(2)=DataSize(1);PSize(1)=DataSize(2);  % To avoid the transpose
 for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
     if v ~= myillu_sumcond{currentSumCondIdx}
-        myillu{v-1}=dip_image(reshape(myinput(1+DataLength*(v-currentSumCondIdx):DataLength*(v-currentSumCondIdx+1)),PSize),'single');  % The reconstruction can be up to 3D, whereas the data might be 4D
+        myillu{v}=dip_image(reshape(myinput(1+DataLength*(v-currentSumCondIdx):DataLength*(v-currentSumCondIdx+1)),PSize),'single');  % The reconstruction can be up to 3D, whereas the data might be 4D
         asum=asum+myillu{v};
         sumviews=sumviews+1;
     else

@@ -131,6 +131,7 @@ if Update(1)=='B'
     myillu=[];  % force the illumination to be empty. Also for the correct normalizations of start vectors
 end
 
+myim=image;  % Just temporarily to be used for size determination
 [RegObj,RegIllu,RegOTF]=ParseRegularisation(Regularisation);  % Also sets global variable such as ForcePos and ComplexObj
 RegularisationParameters=RegObj;
 % if isempty(myillu)
@@ -314,7 +315,8 @@ for v=1:numel(psf)
        if ComplexPSF
            otfrep{v}=ft(psf{v});
        else
-           otfrep{v}=rft(dip_image(fftshift(double(psf{v})))); % The fft shift is necessary, since the rft assumes a different coordinate zero position
+           % otfrep{v}=rft(dip_image(fftshift(double(psf{v})))); % The fft shift is necessary, since the rft assumes a different coordinate zero position
+           otfrep{v}=rft(fftshift(psf{v})); % The fft shift is necessary, since the rft assumes a different coordinate zero position
        end
     end
     clear psf{v};  % These are not needed any longer. Free them, especially if converted to cuda
@@ -596,21 +598,29 @@ end
                         OTFmask=cell(numel(otfrep),1);
                         for no=1:numel(otfrep)
                             absotf=abs(otfrep{no});
-                        	OTFmask{no}=absotf>(max(absotf)/1000);
+                        	OTFmask{no}=absotf>(max(absotf)/10000);
                         end
                     end
                     allotf=cat(4,otfrep{:});
                     % flag below is noFFT and allows an OTF instead of PSF to be used here.
                     global noFFT;  % This is a hack to prevent the fft as this is already an OTF
                     noFFT=1;
-                    VecOTF=ConvertModelToVec(allotf);    % converts the OTF (not PSF!) dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+                    if RegularisationParameters(14,1)  % This means the 2D pupil ist really what is estimated
+                        global PupilInterpolators;
+                        mysize=size(PupilInterpolators.indexList2D,2);
+                        VecOTF=ones(2*mysize,1)/sqrt(2);  %/mysize
+                        VecOTF=VecOTF/sqrt(sum(rift(ConvertInputToModel(VecOTF))));  % To force the PSF to have an in
+                    else  % estimate the 3D OTF voxels
+                        VecOTF=ConvertModelToVec(allotf);    % converts the OTF (not PSF!) dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+                    end
+                    startVec=VecOTF;
                     noFFT=0;
                     NormFac=1;
                     [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
                     NormFacOTF=1/(norm(agrad)/numel(agrad));
                     fprintf('OTF NormFac is %g\n',NormFacOTF);
                 end
-                NormFac=NormFacOTF;
+                NormFac=NormFacOTF*1e-8;
                 [VecOTF,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecOTF,NumOTFIter);
                 if nargout > 3
                     evolOTF=[evolOTF ; myoutput.trace.fval];
@@ -661,7 +671,7 @@ end
 if (nargout > 1)
     resPSF=cell(1,numel(otfrep));
     for c=1:numel(otfrep)
-        resPSF{c}=dip_image(fftshift(double(rift(otfrep{c}))));
+        resPSF{c}=ifftshift(rift(otfrep{c}));
     end
 end
 clear otfrep;

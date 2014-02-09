@@ -11,7 +11,7 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=13;
+NumMaxPar=14;
 RegMat1 = zeros(NumMaxPar,3);
 RegMat2 = zeros(NumMaxPar,3);
 RegMat3 = zeros(NumMaxPar,3);
@@ -120,8 +120,34 @@ for n=1:size(mycells,1)
             RegMat1(12,1)=mycells{n,2};
         case 'Show'  % include an offset intensity into the model
             RegMat1(13,1)=1;
+        case 'ProjPupil'   % This means the only the projected pupil is iterated rather that the full 3d amplitude. 
+            RegMat1(14,1)=1;
+            if (size(mycells,2) < 3) || (numel(mycells{n,2}) ~= 3) || (numel(mycells{n,3}) ~= 3)
+                error('Error using the argument ''ProjPupil''. You need to state wavelength and NA as follows: {''ProjPupil'', [lambda, NA, n],[pixelsizeX pixelsizeY pixelsizeZ]}');
+            end
+            lambda=mycells{n,2}(1);  % Wavelength
+            NA=mycells{n,2}(2);  % NA
+            RI=mycells{n,2}(3);  % refractive index
+            pixelsize=mycells{n,3};
+            global PupilInterpolators;
+            if isempty(PupilInterpolators) || PupilInterpolators.lambda ~= lambda || PupilInterpolators.NA ~= NA || norm(PupilInterpolators.pixelsize - pixelsize) ~= 0
+                global myim;
+                fprintf('Warning: global structure PupilInterpolators does not exist or PSF parameters changed. Recomputing imatrix and pupil factors\n');
+                kernelSize=4;
+                sz=size(myim{1},3);
+                Bsize=ceil(sz)*0.1;
+                imatrix=IterateCoefficients(40,kernelSize,sz,Bsize,500);  % 40 subpixel subdivisions, 2*10+1 kernelsize, 20 pixel bordersize in all directions, 500 iterations
+                [indexList2D,fullIndex3D,factorList,aMask]=FillProjSpherePrepare(size(myim{1}),lambda,pixelsize,NA,imatrix,RI);
+                PupilInterpolators.lambda=lambda;
+                PupilInterpolators.pixelsize=pixelsize;
+                PupilInterpolators.NA=NA;
+                PupilInterpolators.indexList2D=indexList2D;
+                PupilInterpolators.fullIndex3D=fullIndex3D;
+                PupilInterpolators.factorList=factorList;
+                PupilInterpolators.Mask=aMask;
+            end
         otherwise
-            error('For regularisation only TV, AR, GR, CO, Complex, IntensityData, ForcePos, NegSqr, Reuse, Resample, Bg and StartImg are allowed');
+            error('For regularisation only TV, AR, GR, CO, Complex, IntensityData, ForcePos, NegSqr, Reuse, Resample, Bg, ProjPupil and StartImg are allowed');
     end
 end
 

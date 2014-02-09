@@ -32,18 +32,24 @@ addpath('y:\MATLAB\Toolboxes\holography\');
 addpath('y:\MATLAB\Toolboxes\Objects\');
 %disableCuda();
 % enableCuda();
-size3d=[100 100 100];
+size3d=[100 90 100];
 imatrix=IterateCoefficients(40,6,size3d(3),10,500);  % 40 subpixel subdivisions, 2*10+1 kernelsize, 20 pixel bordersize in all directions, 1500 iterations
 %
-aproj=readim;
+aproj=extract(readim,size3d(1:2));
 
 %% make a 3D PSF by filling a part of a spherical shell in Fourier space
-k0=40; kxymax=22;
-famp=newim(size3d,'scomplex'); % empty 3d complex array for Fourier-space
+%k0=40; kxymax=22;
+lambda=515; pixelsize=[100 100 200];, NA=0.8;
 tic
-[indexList2D,fullIndex3D,factorList]=FillProjSpherePrepare(size3d,k0,kxymax,imatrix);
+%[indexList2D,fullIndex3D,factorList]=FillProjSpherePrepare(size3d,k0,kxymax,imatrix);  % old syntax
+[indexList2D,fullIndex3D,factorList]=FillProjSpherePrepare(size3d,lambda,pixelsize,NA,imatrix);
 toc
-atf=FillProjSphere(famp,aproj*0+1,indexList2D,fullIndex3D,factorList);  % Just a circular wave
+famp=newim(size3d,'scomplex'); % empty 3d complex array for Fourier-space
+%mypupil=aproj*0+1;
+mypupil=readim+i*readim('orka');
+mypupil=extract(mypupil,size3d(1:2));
+atf=FillProjSphere(famp,mypupil,indexList2D,fullIndex3D,factorList);  % Just a circular wave
+pupil=ProjSphere2D(atf,indexList2D,fullIndex3D,factorList)  % estimates the 2D pupil from a given 3D distribution
 toc
 asf=ift(atf);
 toc

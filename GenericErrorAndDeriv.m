@@ -68,6 +68,10 @@ thegrad=AssignToGlobal(ConvertInputToModel(myinput)); % Will change either aReco
 % It returns an empty gradient vector (if asked to do so)
 % It also accounts for the ForcePositiv constraint
 
+if ToEstimate==2
+    thegrad=repmat(thegrad,[1 1 1 numel(otfrep)]);
+end
+
 err=0;           % clears the errorsum
 clear myinput;
 
@@ -144,14 +148,18 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
         if ToEstimate==1
             [myReg,myRegGrad]=Regularize(myIllum,BetaVals);
         else
-            mypsf=rift(myOtf);
-            mypsf=circshift(mypsf,floor(size(mypsf)/2));
+            mypsf=ifftshift(rift(myOtf));
+            %mypsf=circshift(mypsf,floor(size(mypsf)/2));
             [myReg,myRegGrad]=Regularize(mypsf,BetaVals);  % Should this better be the PSF ?
-            myRegGrad=circshift(myRegGrad,-floor(size(mypsf)/2));  % back to the coordinate system of the gradient
+            % myRegGrad=circshift(myRegGrad,-floor(size(mypsf)/2));  % back to the coordinate system of the gradient
+            myRegGrad=fftshift(myRegGrad);
             clear mypsf;
         end
         agradIdx=viewNum-1-(currentSumCondIdx-1);
-        if ToEstimate==2 || isempty(my_sumcond) || viewNum ~= my_sumcond{currentSumCondIdx}
+        if ToEstimate==2 || isempty(my_sumcond) || viewNum ~= my_sumcond{currentSumCondIdx}  % OTF estimation or illumination estimation without a sumcondition
+            if ToEstimate==2 && (agradIdx >= length(otfrep))
+                error('Number of images does not correspond to number of OTFs for blind OTF deconvolution');
+            end
             thegrad(:,:,:,agradIdx)=myGrad + myRegGrad;
         else  % The last residuum has to be subtracted from each of the other residuals, see eq. S14 and S4 in supplementary methods of DOI: 10.1038/NPHOTON.2012.83
             thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)=thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
