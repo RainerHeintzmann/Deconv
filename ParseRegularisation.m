@@ -105,6 +105,23 @@ for n=1:size(mycells,1)
                 global myotfs;
                 myotfs=mycells{n,2};
             end
+        case 'Illumination'
+            
+            if ~iscell(mycells{n,2})  && (~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda')))
+                error('When submitting a illumination image for object or illumination, it has to be a dip_image or cuda type');
+            end
+            global myillu;   % here the conversion to cuda could be performed. "useCudaGlobal". Aurelie can you do this?
+            global useCudaGlobal;
+            myillu=mycells{n,2};
+        case 'IlluMask'
+            if ~iscell(mycells{n,2}) && (~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda')))
+                error('When submitting a illumination mask image for object or illumination, it has to be a dip_image or cuda type');
+            end
+            global myillu_mask;
+            myillu_mask=mycells{n,2};
+        case 'IlluSums'
+            global myillu_sumcond;
+            myillu_sumcond=mycells{n,2};
         case 'Complex'
             RegMat1(7,1)=1;  
             %ComplexObj=1;

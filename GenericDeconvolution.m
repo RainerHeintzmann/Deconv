@@ -37,6 +37,12 @@
 % e.g. result could be 29.4 sec and
 % speedtestDeconv(1)
 % e.g. result could be 3.11 sec
+% Example calls:
+% For Poisson noise, Goods roughness and positivity constraint and twice resampling of the output:
+%     myDeconvGP=GenericDeconvolution(img,h,85,'Poisson',[],{'GR',0.01;'ForcePos',[];'Resample',2},[1,1,1],[0 0 0],[],useCuda); gtp=cat(1,img{1},myDeconvGP)
+% For complex data and complex PSF
+%     myDeconv=GenericDeconvolution(img,h,15,'LeastSqr',[],{'Complex',[]},[1 1 1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconv)
+
 
 %***************************************************************************
 %   Copyright (C) 2008-2009 by Rainer Heintzmann                          *
@@ -76,6 +82,7 @@ global NormFac;  % normalisation factor
 global myillu_sumcond;
 % global TheObject;
 global cuda_enabled;  % also to see if cuda is installed
+global useCudaGlobal;useCudaGlobal=useCuda;
 global ConvertInputToModel; % Will change either aRecon, myillu or otfrep. It can be convertVecToObj, convertVecToIllu, convertVecToPSF
 global ConvertModelToVec; % Contains the routine to convert the model (e.g. the gradient of the object) into the vector to iterate
 
@@ -165,12 +172,12 @@ end
         s(end+1:length(borderSizes))=1;
     end
         
-    extraBorder = mod(s+borderSizes,2);
+    extraBorder(2) = mod(s(2)+borderSizes(2),2);  % Only expand for uneven sizes along Y
     if numel(borderSizes)> 2 && borderSizes(3)==0
         extraBorder(3)=0;
     end
     if norm(extraBorder) > 0
-        fprintf('Warning: Bodersize needed to be extended, to yield and even sized total array, required for rft.\n')
+        fprintf('Warning: Bodersize needed to be extended, to yield and even sized (along Y) total array, required for rft.\n')
         borderSizes=borderSizes+extraBorder;
     end
     clear extraBorder;
@@ -660,7 +667,7 @@ res=aRecon;
 clear aRecon;
 
 if norm(borderSizes) > 0 && keepExtendedStack == 0
-   res=extract(res,OrigSize(1:length(size(res))));
+   res=extract(res,floor(aResampling .* OrigSize(1:length(size(res)))));
    fprintf('Reduced size to original\n');
 end
 

@@ -32,7 +32,11 @@ for v= 1:size(grad,4)+numel(myillu_sumcond)  % This loop does the packing
         end
         %if isa(grad,'cuda')
         transformed=rft(subgrad)*2;  % Aurelie & Rainer to make th egradient correct
-        transformed(:,end)=transformed(:,end)/2; % Aurelie & Rainer to make th egradient correct
+        if numel(transformed)<3
+            transformed(:,end)=transformed(:,end)/2; % Aurelie & Rainer to make th egradient correct
+        else
+            transformed(:,end,:)=transformed(:,end,:)/2; % Aurelie 06.02.2014 for thick slice
+        end
         %else
         %    transformed=ft(subgrad);
         %end
