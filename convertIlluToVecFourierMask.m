@@ -28,18 +28,17 @@ for v= 1:size(grad,4)+numel(myillu_sumcond)  % This loop does the packing
         csize(2) = (csize(2)-1)*2;  % Calculate back what the corresponding real data size would be
         %end
         if ~equalsizes(size(subgrad),csize) % This means that a border region is used
-            subgrad=extract(subgrad,size(myillu_mask{v})); % ignore the border region
+            if length(csize) < 3
+                csize(3)=1;
+            end
+            subgrad=extract(subgrad,csize); % ignore the border region
         end
-        %if isa(grad,'cuda')
-        transformed=rft(subgrad)*2;  % Aurelie & Rainer to make th egradient correct
+        transformed=rft(subgrad)*2;  % Aurelie & Rainer to make the gradient correct.  Why ??
         if numel(transformed)<3
             transformed(:,end)=transformed(:,end)/2; % Aurelie & Rainer to make th egradient correct
         else
             transformed(:,end,:)=transformed(:,end,:)/2; % Aurelie 06.02.2014 for thick slice
         end
-        %else
-        %    transformed=ft(subgrad);
-        %end
         toWrite=double(transformed(myillu_mask{v}));  % selects only the pixels inside the mask
         WriteSize=numel(toWrite);
         out(1+WrittenData:WrittenData+WriteSize)=toWrite;

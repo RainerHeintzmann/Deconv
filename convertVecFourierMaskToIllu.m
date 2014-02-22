@@ -7,8 +7,9 @@ global myillu;  % will be overwritten
 global myim;
 global myillu_sumcond;
 global myillu_mask;
+global aRecon; % needed for size information of the reconstruction object
 
-DataSize=size(myim{1});
+DataSize=size(aRecon);
 if isempty(myillu_mask) || numel(myillu_mask)==0  % This means the vector refers to intensity data
     error('When using Fourier-mask data for illumination, the mask needs to be defined');
 end
@@ -26,7 +27,12 @@ for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
         myillu{v}=AmpMaskToIllu(myillu_mask{v},myinput(1+TotalReadData:TotalReadData+DataToRead));
         TotalReadData=TotalReadData+DataToRead;
         if ~equalsizes(DataSize,size(myillu{v}))
-            error('Datasize unequal to tofill size. This should not happen');
+            if size(myillu{v},3)==1
+                myillu{v}=repmat(myillu{v},[1 1 DataSize(3)]);  % Just assumes that the illumination is identical in all planes. Better would be a proper 3D mask with only 2D nonzero areas.
+                fprintf('Warning: Illumination mask was chosen 2D even though reconstructed data is 3D size. Assuming same intensity in all planes\n');
+            else
+                error('Reconstructed object size does not correspond to calculated illumination. This should not happen. Illumination-mask size is probably wrong.');
+            end
         end
         asum=asum+myillu{v};
         sumviews=sumviews+1;

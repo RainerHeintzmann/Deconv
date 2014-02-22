@@ -244,6 +244,7 @@ if length(borderSizes) > length(OrigSize)
 end
 %% Extend the boarder
 NewSize=OrigSize;  % Will also be needed for object starting vector
+NewDataSize=OrigSize;  % Will also be needed for object starting vector
 if isa(borderSizes,'dip_image')
     fprintf('Mask provided as bordersize. Using mask instead of generating borders');
     DeconvMask=borderSizes;    
@@ -330,14 +331,14 @@ for v=1:numel(psf)
        if ComplexPSF
            otfrep{v}=ft(cuda(psf{v}));  
        else
-           otfrep{v}=rft(fftshift(cuda(psf{v})));  % The fft shift is necessary, since the rft assumes a different coordinate zero position
+           otfrep{v}=rft(ifftshift(cuda(psf{v})));  % The fft shift is necessary, since the rft assumes a different coordinate zero position
        end
     else
        if ComplexPSF
            otfrep{v}=ft(psf{v});
        else
            % otfrep{v}=rft(dip_image(fftshift(double(psf{v})))); % The fft shift is necessary, since the rft assumes a different coordinate zero position
-           otfrep{v}=rft(fftshift(psf{v})); % The fft shift is necessary, since the rft assumes a different coordinate zero position
+           otfrep{v}=rft(ifftshift(psf{v})); % The fft shift is necessary, since the rft assumes a different coordinate zero position
        end
     end
     clear psf{v};  % These are not needed any longer. Free them, especially if converted to cuda
@@ -347,7 +348,7 @@ for v=1:numel(psf)
            % the line below accounts for the fact for rft convolutions OTFs are centered at the border, not in the center, but a simle sum over Z is used
             otfrep{v}= otfrep{v}.* ifftshift(exp(i*(floor(size(otfrep{v},3)/2)/size(otfrep{v},3))*2*pi*zz(size(otfrep{v}))));
        end
-       % otfrep{v}= otfrep{v} / sqrt(size(otfrep{v},3));            
+       % otfrep{v}= otfrep{v} / sqrt(size(otfrep{v},3));    % This line turns out to be wrong. Nevertheless results can look nicer ??!
     end
 end
 
@@ -466,12 +467,14 @@ clear mymean;
 
 %lambdaPenalty=0; % 1e6;
 if Update(1)~='B'
-     NormFac=0.06;
-%     [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
-%     aNorm=1/(norm(agrad)/numel(agrad));
-%     NormFac=aNorm;
-    % NormFac=0.06;  % 1e-6
-
+    %NormFac=0.06;
+    if (0)
+        [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+        aNorm=1/(norm(agrad)/numel(agrad));
+        NormFac=aNorm;
+    else
+        NormFac=0.06;  % 1e-6
+    end
     RegularisationParameters=RegObj;
     if isempty(myillu)
         AssignFunctions(RegularisationParameters,0); % To estimate is Object (non-blind)
@@ -510,7 +513,7 @@ end
         if RegIllu(6,1)
             VecIllu=myillu;
         elseif NumIter(4) > 0 % ~isempty(Regularisation{2})  % This means that a spatially variing illumination is part of the model. Thus a start vector is needed
-            VecIllu = repmat(myim{1}*0+1,[1 1 1 numel(myim)-length(myillu_sumcond)]);
+            VecIllu = repmat(dip_image(1),[NewSize numel(myim)-length(myillu_sumcond)]);
             %         if isa(myim{1},'cuda')
             %             VecIllu=ones_cuda(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
             %         else

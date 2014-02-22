@@ -245,6 +245,7 @@ end
 %global EvolObj; %Aurelie 26022013
 %MyObjReg={'NegSqr',0.001;'GR',0.02};
 MyObjReg={'ForcePos',[];};
+MyObjReg={};
 MyIlluReg={};
 %MyIlluReg={'NegSqr',0.001};
 %MyIlluReg={'ForcePos',[]};
