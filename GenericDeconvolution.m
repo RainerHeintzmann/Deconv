@@ -243,27 +243,38 @@ if length(borderSizes) > length(OrigSize)
    OrigSize(end+1:length(borderSizes))=1;
 end
 %% Extend the boarder
+NewSize=OrigSize;  % Will also be needed for object starting vector
 if isa(borderSizes,'dip_image')
     fprintf('Mask provided as bordersize. Using mask instead of generating borders');
     DeconvMask=borderSizes;    
 else if norm(borderSizes) > 0
         NewSize=floor(OrigSize+borderSizes);
-        fprintf('Border region requested, expanding size from [');
-        fprintf('%g,',OrigSize);
-        fprintf('] to [');
-        fprintf('%g,',NewSize);
-        fprintf('] \n');
-        DeconvMask=extract(myim{1}*0>-1,NewSize);  % Place zero outside and one at the old data region
-        if ~isempty(Variances)
-            DeconvVariances=extract(Variances,NewSize,floor(NewSize/2),1);  % Pad with Variance of one (gets ignored)
-        end
-        for v=1:length(myim)
-            myim{v}=extract(myim{v},NewSize);  % Overwrite the old data            
-            if (v<=numel(psf)) && norm(size(psf{v})-NewSize)~=0
-               psf{v}=squeeze(extract(psf{v},NewSize,[],'cyclic'));
-               fprintf('Warning: View %d, PSF has incorrect size. Adapting the size of the PSF\n',v);
+        NewDataSize=NewSize;
+        if (1)  % Here the "one-slice speedup" trick can be disabled or enabled
+            if length(NewDataSize) > 2 && OrigSize(3) == 1
+                fprintf('Border regions: Thick slice speedup possible! Will keep Z-datasize of only one slice.\n');
+                NewDataSize(3)=1;
             end
-            if exist('myillu') && ~isempty(myillu)
+        end
+        if norm(OrigSize-NewDataSize) > 0
+            fprintf('Border region requested, expanding data size from [');
+            fprintf('%g,',OrigSize);
+            fprintf('] to [');
+            fprintf('%g,',NewDataSize);
+            fprintf('] \n');
+            DeconvMask=extract(myim{1}*0>-1,NewDataSize);  % Place zero outside and one at the old data region
+            for v=1:length(myim)  % insert empty information
+                myim{v}=extract(myim{v},NewDataSize);  % Overwrite the old data
+                if (v<=numel(psf)) && norm(size(psf{v})-NewDataSize)~=0
+                    psf{v}=squeeze(extract(psf{v},NewDataSize,[],'cyclic'));
+                    fprintf('Warning: View %d, PSF has incorrect size. Adapting the size of the PSF\n',v);
+                end
+            end
+        else
+            DeconvMask=[];  % No mask is needed
+        end
+        if exist('myillu') && ~isempty(myillu)   % illu has to use Object size = NewSize, not NewDataSize
+            for v=1:length(myillu)
                 sillu=size(myillu{1+mod(v-1,numel(myillu))});
                 sillu(end+1:length(NewSize))=1;
                 if (v <= numel(myillu)) && norm(sillu-NewSize) ~= 0
@@ -272,8 +283,11 @@ else if norm(borderSizes) > 0
                 end
             end
         end
+        if ~isempty(Variances)
+            DeconvVariances=extract(Variances,NewDataSize,floor(NewDataSize/2),1);  % Pad with Variance of one (gets ignored)
+        end
     else
-        for v=1:numel(psf)
+        for v=1:numel(psf)   % PSF has to use NewSize, not NewDataSize
             spsf=size(psf{1+mod(v-1,numel(psf))});
             OrigSize(end+1:length(spsf))=1;
             if norm(spsf-OrigSize)~=0
@@ -327,7 +341,16 @@ for v=1:numel(psf)
        end
     end
     clear psf{v};  % These are not needed any longer. Free them, especially if converted to cuda
+    if length(NewDataSize) > 2 && OrigSize(3) == 1 && (NewDataSize(3) == OrigSize(3))
+       fprintf('Thick slice speedup: Adjusting OTF #%d for slicing operation.\n',v);
+       if ~ ComplexPSF        % fft-based calculations are easier than rft calculations
+           % the line below accounts for the fact for rft convolutions OTFs are centered at the border, not in the center, but a simle sum over Z is used
+            otfrep{v}= otfrep{v}.* ifftshift(exp(i*(floor(size(otfrep{v},3)/2)/size(otfrep{v},3))*2*pi*zz(size(otfrep{v}))));
+       end
+       % otfrep{v}= otfrep{v} / sqrt(size(otfrep{v},3));            
+    end
 end
+
 
 if useCuda
     for v=1:numel(myillu_mask)
@@ -372,7 +395,7 @@ if RegObj(6,1)  % means reuse previous result
     startVec=aRecon;
 else
     if (1)
-        svecsize=size(myim{1});
+        svecsize=NewSize; % as defined above.  Not size(myim{1}) is the object lives in a different space
         if any(aResampling~=1)
             svecsize = floor(svecsize .* aResampling);
         end

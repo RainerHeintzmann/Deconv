@@ -13,6 +13,7 @@ global ConvertGradToVec; % Contains the routine to convert the model (e.g. the g
 global ConvertModelToVec; % Contains the routine to convert the model (e.g. the gradient of the object) into the vector to iterate
 global AssignToGlobal; % Assigns the converted data to the appropriate global variable and return an empty gradient vector
 global myim; % This is the measured data. It is needed to see, if it is of type complex, in which case even real reconstructions have to generate full complex data.
+global otfrep;  % This is needed to compare the Z-size, to see whether the thick slice (single plane) speedup trick can be used
 global ComplexPSF; % will be set, if PSF is complex valued
 global myillu_mask; % to decide which Vector conversion routine to use
 global my_sumcond;
@@ -57,8 +58,13 @@ if ToEstimate==0  % Object is estimated, illumination and psf are assumed to be 
             end
         else % real reconstruction and real data
             ConvertInputToModel=@convertVecToObj;
-            FwdModel=@FwdObjConvPSF;
-            BwdModel=@BwdResidObjConfPSF;
+            if ndims(otfrep{1}) > 2 && size(myim{1},3) == 1 && size(otfrep{1},3) ~= size(myim{1},3)
+                FwdModel=@FwdObjConvPSF_Slice;
+                BwdModel=@BwdResidObjConfPSF_Slice;
+            else
+                FwdModel=@FwdObjConvPSF;
+                BwdModel=@BwdResidObjConfPSF;
+            end
             ConvertModelToVec=@convertObjToVec;
         end
     end
@@ -71,8 +77,13 @@ elseif ToEstimate==1  % Object is estimated, illumination is assumed known, but 
         ConvertModelToVec=@convertCpxObjToVec;
     else
         ConvertInputToModel=@convertVecToObj;
-        FwdModel=@FwdObjIlluConvPSF;
-        BwdModel=@BwdResidObjIlluConfPSF;
+        if ndims(otfrep{1}) > 2 && size(myim{1},3) == 1 && size(otfrep{1},3) ~= size(myim{1},3)
+            FwdModel=@FwdObjIlluConvPSF_Slice;
+            BwdModel=@BwdResidObjIlluConfPSF_Slice;
+        else
+            FwdModel=@FwdObjIlluConvPSF;
+            BwdModel=@BwdResidObjIlluConfPSF;
+        end
         ConvertModelToVec=@convertObjToVec;
     end
 elseif ToEstimate==2  % object and psf are assumed to be known, and illumination is estimated
@@ -89,8 +100,13 @@ elseif ToEstimate==2  % object and psf are assumed to be known, and illumination
         FwdModel=@FwdObjIlluConvASF;
         BwdModel=@BwdResidIlluObjConfASF;
     else
-        FwdModel=@FwdObjIlluConvPSF;
-        BwdModel=@BwdResidIlluObjConfPSF;
+        if ndims(otfrep{1}) > 2 && size(myim{1},3) == 1 && size(otfrep{1},3) ~= size(myim{1},3)
+            FwdModel=@FwdObjIlluConvPSF_Slice;
+            BwdModel=@BwdResidObjIlluConfPSF_Slice;
+        else
+            FwdModel=@FwdObjIlluConvPSF;
+            BwdModel=@BwdResidObjIlluConfPSF;
+        end
     end
 elseif ToEstimate==3  % object and illumination are assumed to be known, and otf is estimated
     if RegularisationParameters(14,1) % case 'ProjPupil' where only the 2D pupil is estimated

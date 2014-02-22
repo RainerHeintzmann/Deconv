@@ -8,7 +8,7 @@ end
 %% User-defined parameters:
 %NumPhotons=0;
 Offset=0;  % 10
-sX=200;sY=160;sZ=1; %sZ: number of slices (10 is good for Spokes object, 20 is good for beadSample)
+sX=200;sY=160;sZ=9; %sZ: number of slices (10 is good for Spokes object, 20 is good for beadSample)
 lambda=500;
 scaleX=lambda/20;   % pixel sizes in nm
 scaleY=lambda/20;
@@ -31,7 +31,7 @@ Norm='LeastSqr'; SearchMethod='B';
 Lambda=0.01; 
 Pen='GR'; 
 Neg='NegSqr'; 
-DeconvBorders=[0 0];
+DeconvBorders=[0 0 4];  % thick slice reconstruction
 extStack=1; NumIter=25; 
 % Pen='NONE'; 
 % Neg='NONE';
@@ -190,7 +190,7 @@ if do_comp
 % 2) The deconvolution takes into account the aberrated illumination
 % (should perform better than previous one)
 myillu=myspeckles;
-myDeconvC=GenericDeconvolution(img,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
+myDeconvC=GenericDeconvolution(img,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1,1],DeconvBorders,[],useCuda); 
 % deconv_aberrated=cat(4,myDeconvC,obj,img{1}) %Display result
 
 % 3) Wide-field
