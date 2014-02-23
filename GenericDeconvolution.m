@@ -251,7 +251,7 @@ if isa(borderSizes,'dip_image')
 else if norm(borderSizes) > 0
         NewSize=floor(OrigSize+borderSizes);
         NewDataSize=NewSize;
-        if (0)  % Here the "one-slice speedup" trick can be disabled or enabled
+        if (1)  % Here the "one-slice speedup" trick can be disabled or enabled
             if length(NewDataSize) > 2 && OrigSize(3) == 1
                 fprintf('Border regions: Thick slice speedup possible! Will keep Z-datasize of only one slice.\n');
                 NewDataSize(3)=1;
