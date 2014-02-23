@@ -251,7 +251,7 @@ if isa(borderSizes,'dip_image')
 else if norm(borderSizes) > 0
         NewSize=floor(OrigSize+borderSizes);
         NewDataSize=NewSize;
-        if (1)  % Here the "one-slice speedup" trick can be disabled or enabled
+        if (0)  % Here the "one-slice speedup" trick can be disabled or enabled
             if length(NewDataSize) > 2 && OrigSize(3) == 1
                 fprintf('Border regions: Thick slice speedup possible! Will keep Z-datasize of only one slice.\n');
                 NewDataSize(3)=1;
@@ -585,7 +585,7 @@ end
                 ToEstimate=1;  % illumination estimation step
                 NumIlluIter=NumIter(4); % SIM 5;  Speckles: 15
                 % aRecon=TheObject;
-                if n==1
+                if n==1  % can also be if (1)
                     NormFac=1;
                     RegularisationParameters=RegIllu;AssignFunctions(RegularisationParameters,2); % To estimate is Blind Illumination Step
                     [val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation

@@ -29,7 +29,7 @@ for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
         if ~equalsizes(DataSize,size(myillu{v}))
             if size(myillu{v},3)==1
                 myillu{v}=repmat(myillu{v},[1 1 DataSize(3)]);  % Just assumes that the illumination is identical in all planes. Better would be a proper 3D mask with only 2D nonzero areas.
-                fprintf('Warning: Illumination mask was chosen 2D even though reconstructed data is 3D size. Assuming same intensity in all planes\n');
+               % fprintf('Warning: Illumination mask was chosen 2D even though reconstructed data is 3D size. Assuming same intensity in all planes\n');
             else
                 error('Reconstructed object size does not correspond to calculated illumination. This should not happen. Illumination-mask size is probably wrong.');
             end
