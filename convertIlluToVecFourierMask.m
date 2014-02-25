@@ -34,7 +34,7 @@ for v= 1:size(grad,4)+numel(myillu_sumcond)  % This loop does the packing
             subgrad=extract(subgrad,csize); % ignore the border region
         end
         transformed=rft(subgrad)*2;  % Aurelie & Rainer to make the gradient correct.  Why ??
-        if numel(transformed)<3
+        if ndims(transformed)<3
             transformed(:,end)=transformed(:,end)/2; % Aurelie & Rainer to make th egradient correct
         else
             transformed(:,end,:)=transformed(:,end,:)/2; % Aurelie 06.02.2014 for thick slice

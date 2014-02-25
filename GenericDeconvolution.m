@@ -526,7 +526,7 @@ end
             %
             sumSqr=0;
             for v=1:length(myim)
-                myillu{v}=myim{v}*0+1;  % start with uniform illumination
+                myillu{v}=newim(NewSize)+1;  % start with uniform illumination
                 %myillu{v}=myim{v}*0+2*rand(size(myim{1},1),size(myim{1},1));  % start with uniform illumination
                 sumSqr=sumSqr+sum(myim{v}.*myim{v});   % for calculating the normalisation
                 % VecIllu(1+DataSize*(v-1):DataSize*v)=(double(reshape(myillu{v},[DataSize 1])))';
