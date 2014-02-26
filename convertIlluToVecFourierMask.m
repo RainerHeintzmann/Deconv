@@ -33,7 +33,7 @@ for v= 1:size(grad,4)+numel(myillu_sumcond)  % This loop does the packing
             end
             subgrad=extract(subgrad,csize); % ignore the border region
         end
-        transformed=rft(subgrad)*2;  % Aurelie & Rainer to make the gradient correct.  Why ??
+        transformed=rft(subgrad);  % Aurelie & Rainer to make the gradient correct.  Why ??
         if ndims(transformed)<3
             transformed(:,end)=transformed(:,end)/2; % Aurelie & Rainer to make th egradient correct
         else

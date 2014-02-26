@@ -102,10 +102,10 @@ elseif ToEstimate==2  % object and psf are assumed to be known, and illumination
     else
         if ndims(otfrep{1}) > 2 && size(myim{1},3) == 1 && size(otfrep{1},3) ~= size(myim{1},3)
             FwdModel=@FwdObjIlluConvPSF_Slice;
-            BwdModel=@BwdResidObjIlluConfPSF_Slice;
+            BwdModel=@BwdResidIlluObjConfPSF_Slice;
         else
             FwdModel=@FwdObjIlluConvPSF;
-            BwdModel=@BwdResidObjIlluConfPSF;
+            BwdModel=@BwdResidIlluObjConfPSF;
         end
     end
 elseif ToEstimate==3  % object and illumination are assumed to be known, and otf is estimated
