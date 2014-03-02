@@ -513,7 +513,11 @@ end
         if RegIllu(6,1)
             VecIllu=myillu;
         elseif NumIter(4) > 0 % ~isempty(Regularisation{2})  % This means that a spatially variing illumination is part of the model. Thus a start vector is needed
-            VecIllu = repmat(dip_image(1),[NewSize numel(myim)-length(myillu_sumcond)]);
+            if useCuda
+                VecIllu = repmat(cuda(dip_image(1)),[NewSize numel(myim)-length(myillu_sumcond)]);
+            else
+                VecIllu = repmat(dip_image(1),[NewSize numel(myim)-length(myillu_sumcond)]);
+            end
             %         if isa(myim{1},'cuda')
             %             VecIllu=ones_cuda(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
             %         else
@@ -537,7 +541,7 @@ end
             NormFac=1;
             RegularisationParameters=RegObj;AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
             [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
-            aNorm=1/(norm(agrad)/numel(agrad));
+            aNorm=1/(norm(agrad)/numel(agrad))  / 100;
             fprintf('Object NormFac is %g\n',aNorm);
         else
             aNorm=0.06;

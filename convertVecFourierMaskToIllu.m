@@ -18,13 +18,21 @@ sumviews=0;
 currentSumCondIdx=1;
 PSize=DataSize;PSize(2)=DataSize(1);PSize(1)=DataSize(2);  % To avoid the transpose
 TotalReadData=0;
+if ndims(myillu_mask{1})< 3 || size(myillu_mask,3)== 1
+     usethismask=newim([size(myillu_mask{1},1) size(myillu_mask{1},2) size(aRecon,3)],'bin');
+end
 for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
     if v ~= myillu_sumcond{currentSumCondIdx}
         if v == 1
             myinput=complex(myinput(1:end/2), myinput(end/2+1:end)); % pack two reals to one complex
         end
         DataToRead=sum(myillu_mask{v});
-        myillu{v}=AmpMaskToIllu(myillu_mask{v},myinput(1+TotalReadData:TotalReadData+DataToRead));
+        if ndims(aRecon)>2 && size(aRecon,3) > 1 && (ndims(myillu_mask{v})< 3 || size(myillu_mask{v},3)== 1)
+            usethismask(:,:,0)=myillu_mask{v};
+        else
+            usethismask=myillu_mask{v};
+        end
+        myillu{v}=AmpMaskToIllu(usethismask,myinput(1+TotalReadData:TotalReadData+DataToRead),v);  % remove the "v" if the filled mask does not need to be stored
         TotalReadData=TotalReadData+DataToRead;
         if ~equalsizes(DataSize,size(myillu{v}))
             if size(myillu{v},3)==1

@@ -27,19 +27,31 @@ for v= 1:size(grad,4)+numel(myillu_sumcond)  % This loop does the packing
         %if isa(myillu_mask{v},'cuda')
         csize(2) = (csize(2)-1)*2;  % Calculate back what the corresponding real data size would be
         %end
+        if ndims(csize) < 3 && ndims(subgrad) > 2  % For the case of a two-D mask, which is interpreted as the central slice in Fourier-space
+            csize(3) = size(subgrad,3);
+        end
         if ~equalsizes(size(subgrad),csize) % This means that a border region is used
-            if length(csize) < 3
+            if ndims(subgrad) > 2 && length(csize) < 3
                 csize(3)=1;
             end
             subgrad=extract(subgrad,csize); % ignore the border region
         end
-        transformed=rft(subgrad);  % Aurelie & Rainer to make the gradient correct.  Why ??
-        if ndims(transformed)<3
-            transformed(:,end)=transformed(:,end)/2; % Aurelie & Rainer to make th egradient correct
-        else
-            transformed(:,end,:)=transformed(:,end,:)/2; % Aurelie 06.02.2014 for thick slice
+        transformed=rft(subgrad);  
+        if (1)
+            if ndims(transformed)<3
+                transformed(:,1:end-1)=transformed(:,1:end-1)*2; % Aurelie & Rainer to make th egradient correct
+            else
+                transformed(:,1:end-1,:)=transformed(:,1:end-1,:)*2; % Rainer
+                if ndims(myillu_mask{v}) <3 || size(myillu_mask{v},3) == 1
+                    if ndims(myillu_mask{v}) <3
+                        transformed=squeeze(transformed(:,:,0));
+                    else
+                        transformed=transformed(:,:,0);
+                    end
+                end
+            end
         end
-        toWrite=double(transformed(myillu_mask{v}));  % selects only the pixels inside the mask
+        toWrite=double(transformed(myillu_mask{v}));  % selects only the pixels inside the mask. Remark from Aurelie: transformed and myillu_mask have to be of the same type (both cuda or both not)
         WriteSize=numel(toWrite);
         out(1+WrittenData:WrittenData+WriteSize)=toWrite;
         WrittenData=WrittenData+WriteSize;

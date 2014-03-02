@@ -189,14 +189,17 @@ if do_comp
 
 % 2) The deconvolution takes into account the aberrated illumination
 % (should perform better than previous one)
+MyObjReg={'ForcePos',[];'TV',[3,0]};
+%MyObjReg={'ForcePos',[];};
+MyIlluReg={};
 myillu=myspeckles;
-myDeconvC=GenericDeconvolution(img,h,NumIter,'LeastSqr',[],{'NegSqr',0.001},[1,1,1],DeconvBorders,[],useCuda); 
+myDeconvC=GenericDeconvolution(img,h,50,'LeastSqr',[],{MyObjReg,MyIlluReg},[1,1,1],[0 0],[],useCuda); 
 % deconv_aberrated=cat(4,myDeconvC,obj,img{1}) %Display result
 
 % 3) Wide-field
 myillu=[];
 img2=squeeze(sum(cat(4,img{:}),[],4)); %Wide-field image
-myDeconvWF=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'ForcePos',0},[1,1,1],[0 0],[],useCuda); 
+myDeconvWF=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{MyObjReg},[1,1,1],[0 0],[],useCuda); 
 myDeconvWF_GR=GenericDeconvolution(img2,h,NumIter,'LeastSqr',[],{'GS',0.02;'NegSqr',0.001},[1,1,1],[0 0],[],useCuda); 
 % st=cat(4,myDeconvWF,myDeconvC,obj,myspeckles{1},img{1}) %Display result
 
@@ -244,15 +247,15 @@ end
 %global EvolIllu; %Aurelie 26022013
 %global EvolObj; %Aurelie 26022013
 %MyObjReg={'NegSqr',0.001;'GR',0.02};
-MyObjReg={'ForcePos',[];};
+MyObjReg={'ForcePos',[];'TV',[0.1,0]};
 %MyObjReg={};
 MyIlluReg={};
 %MyIlluReg={'NegSqr',0.001};
 %MyIlluReg={'ForcePos',[]};
-useCuda=0;
-NumIter=[50 5 25 5];
+NumIter=[20 5 25 5];
+MySampling=[1 1 1e3];
 
-[myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
+[myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},MySampling,DeconvBorders,[],useCuda,extStack); 
 resIllu=cat(4,myillu{:});
 % [myDeconvBlind2,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
 % [myDeconvBlind resIllu]=GenericDeconvolutionAJ(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 

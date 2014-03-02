@@ -4,6 +4,8 @@
 sX=10;
 sY=10;
 NumIm=2;
+useCuda=0;
+MyObjReg={'ForcePos',[]};  % ;'TV',[0.1,0]
 
 obj=dip_image(rand(sX,sY));
 
@@ -29,13 +31,7 @@ global lambdaPenalty;lambdaPenalty=1.0;
 global DeconvMethod;DeconvMethod='LeastSqr';
 %global DeconvMethod;DeconvMethod='Poisson';
 global NegPenalty;NegPenalty='NONE';
-%global NegPenalty;NegPenalty='NegSqr';
-%global RegularisationMethod;RegularisationMethod='GR';
-%global RegularisationMethod;RegularisationMethod='AR';
-%global RegularisationMethod;RegularisationMethod='TV';
-global RegularisationMethod;RegularisationMethod='NONE';
-global DeconvVariance;
-DeconvVariances=[];
+global DeconvVariance; DeconvVariances=[];
 global BetaVals;
 BetaVals=[1 1 1];
 global DeconvMask;DeconvMask=xx(sX,sY)>0;  % only data in this mask will be evaluated
@@ -44,37 +40,45 @@ global DeconvMask;DeconvMask=xx(sX,sY)>0;  % only data in this mask will be eval
 global myillu;myillu={};myillu{1}=illu(:,:,0);myillu{2}=illu(:,:,1);  % only data in this mask will be evaluated
 global NormFac;NormFac=1.0;   % Normalisation factor
 global ToEstimate;ToEstimate=0;   % 0 is object, 1 is object with knonwn illu, 2 is illu
-ToReg=0;  % 1 means illu
+ToReg=0;  % 0: Object, 1 means illu
 global aRecon;aRecon=objestimate;   % 0 is object, 1 is illu
 global RegularisationParameters;
-RegularisationParameters=ParseRegularisation({},ToReg);
+RegularisationParameters=ParseRegularisation(MyObjReg,ToReg);
 AssignFunctions(RegularisationParameters,ToEstimate)
 myVec=double(reshape(estimate,prod(size(estimate))));
 %%
 [err,grad]=GenericErrorAndDeriv(myVec);
 %%   Do all the cuda conversions here to test the cuda variant of the algorithm
 
-initCuda();
-myVec=cuda(myVec);
-grad=cuda(grad);
-for n=1:numel(myillu)
-    myillu{n}=cuda(myillu{n});
-    myim{n}=cuda(myim{n});
+if (useCuda)
+    initCuda();
+    myVec=cuda(myVec);
+    grad=cuda(grad);
+    for n=1:numel(myillu)
+        myillu{n}=cuda(myillu{n});
+        myim{n}=cuda(myim{n});
+    end
+    otfrep{1}=rft(fftshift(cuda(h)));
+    DeconvMask=cuda(DeconvMask);
+    aRecon=cuda(aRecon);
+    
+    [err,grad]=GenericErrorAndDeriv(myVec);
 end
-otfrep{1}=rft(fftshift(cuda(h)));
-DeconvMask=cuda(DeconvMask);
-aRecon=cuda(aRecon);
-
-[err,grad]=GenericErrorAndDeriv(myVec);
 
 %%
 clear mygrad;
 eps = 1e-3;
+fprintf('Testing Gradient direction total: %g\n',size(myVec,2));
 for d=1:size(myVec,2)
+    fprintf('%d ',d);
     UnitD = myVec*0;
     UnitD(d) = 1;
     mygrad(d) = (GenericErrorAndDeriv(myVec+(eps * UnitD)) - err) / eps;
+    if mod(d,40)==0
+        fprintf('\n');
+    end
 end
+fprintf('\n');
 
 grad= reshape(dip_image(grad','single'),size(img));
 mygrad=reshape(dip_image(mygrad','single'),size(img));
@@ -85,6 +89,6 @@ end
 
 cat(3,grad,mygrad)
 
-relerror = (mygrad - grad') ./ max(abs(grad'));
+relerror = (mygrad - grad') ./ mean(abs(grad));
 fprintf('Max Error :%g\n',max(abs(relerror)))   % Problems are caused by the hessian operator on finite arrays at the edges
 fprintf('Max Center Error :%g\n',max(abs(relerror(1:end-1,1:end-1))))   % Problems are caused by the hessian operator on finite arrays at the edges
