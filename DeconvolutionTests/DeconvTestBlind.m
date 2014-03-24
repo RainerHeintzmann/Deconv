@@ -28,9 +28,21 @@ obj=Offset+obj*NumPhotons/max(mcconv);
 %%
 if (1) % For the 3D sample
     useCuda=0;
+    % Just to see if the object deconv works with a known PSF
+    [myDeconvRes,dum,resPSF]=GenericDeconvolution(img,ha,[1 10 0 0 0],'LeastSqr','Blbfgs',{{'StartImg',obj},{},{}},[1,1,1],[0 0 0],[],useCuda); 
+    % Now try the iteration of the PSF with a known object
     [myDeconvRes,dum,resPSF]=GenericDeconvolution(img,h,[1 0 0 0 150],'LeastSqr','Blbfgs',{{'StartImg',obj},{},{}},[1,1,1],[0 0 0],[],useCuda); 
     cat(1,h(:,70,:),ha(:,70,:),resPSF{1}(:,70,:))
-    [myDeconvRes,dum,resPSF]=GenericDeconvolution(img,h,[1 0 0 0 150],'LeastSqr','Blbfgs',{{'StartImg',obj},[],{'ProjPupil',[lambda,NA,ri],[scaleX scaleY scaleZ]}},[1,1,1],[0 0 0],[],useCuda); 
+
+    % Exchanging Object and PSF needs a few normalisations:
+    [myDeconvRes2,dum,resPSF2]=GenericDeconvolution(img,obj/sum(obj),[1 150 0 0 0],'LeastSqr','Blbfgs',{{'StartImg',h*sum(img{1})},{},{}},[1,1,1],[0 0 0],[],useCuda); 
+    cat(1,h(:,70,:),ha(:,70,:),resPSF{1}(:,70,:),myDeconvRes2{1}(:,70,:)/sum(img{1}))
+
+    % Now a proper blind estimation: Unknown object and unknown PSF
+    [myDeconvRes3,dum,resPSF3]=GenericDeconvolution(img,h,[5 5 50 0 50],'LeastSqr','Blbfgs',{},[1,1,1],[0 0 0],[],useCuda); 
+    cat(1,h(:,70,:),ha(:,70,:),resPSF{1}(:,70,:),resPSF3{1}(:,70,:))
+
+    [myDeconvRes,dum,resPSF]=GenericDeconvolution(img,h,[1 0 0 0 50],'LeastSqr','Blbfgs',{{'StartImg',obj},[],{'ProjPupil',[lambda,NA,ri],[scaleX scaleY scaleZ]}},[1,1,1],[0 0 0],[],useCuda); 
     cat(1,h(:,70,:),ha(:,70,:),resPSF{1}(:,70,:))
     
     

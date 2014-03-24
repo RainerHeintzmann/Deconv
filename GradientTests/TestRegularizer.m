@@ -1,3 +1,5 @@
+%03.03.2014: Test new deconv toolbox OK. Aurelie
+
 % This function simulates a small image and test numerically whether the gradiests as estimated by GenericErrorAndDrivative correspond to what is expected from the error value return of that function
 %clear all
 %disableCuda();

@@ -40,7 +40,12 @@ global ConvertGradToVec; % Contains the routine to convert the model (e.g. the g
 global CalcResiduum; % A function (pointer) which is assigned outside. Options are ResidPoisson(), ResidLeastSrq(), ResidWeightedLeastSqr()
 global FwdModel; % A function (pointer) which is assigned outside. Options are FwdObjConvPSF() FwdObjConvASF() FwdObjIlluConfPSF() and FwdObjIlluConfASF()
 global BwdModel;  % This performs the convolution of the residuum with the psf. Options are BwdModel() are BwdResidObjConvPSF() BwdResidObjConvASF() BwdResidObjIlluConvPSF() BwdResidObjIlluConvASF() BwdResidIlluObjConvPSF() BwdResidIlluObjConvASF()
+global BwdExtraModel;  % Here changes to the Bwd projection are applied to, such as Sqr or Phase
 global RegularisationParameters;  % Used only for 'Show'
+global measSumsSqr;
+global measSums;
+global measSum;
+global measSumSqr;
 
 %delta= 100; % Weight for the negativtiy penalty
 %delta= 1000; % Weight for the negativtiy penalty
@@ -55,6 +60,7 @@ end
 % Recast the matlab data into the dip_image datastructure
 %aRecon=dip_image(aRecon);
 norm3D = sqrt(prod(size(myim{1})));  % aRecon is not defined yet.
+norm3DObj = sqrt(prod(floor(to3dvec(aResampling) .* to3dvec(size(myim{1})))));  % aRecon is not defined yet.
 DataSize=size(myim{1});
 DataLength=prod(DataSize);
 %if length(DataSize) < 3
@@ -83,6 +89,7 @@ prevSumCondGradIdx=0;
 if isempty(ToEstimate) || ToEstimate==0  % Object estimate is only regularised once even for multi-view deconv
     [myReg,myRegGrad]=Regularize(aRecon,BetaVals);  % Object regularisation is applied only once!
     err=err+myReg;    % was cleared before the for-loop
+    % myRegGrad=BwdExtraModel(myRegGrad,1);  % The background model is applied after the for loop for all instances    
     thegrad=thegrad+ myRegGrad;
     if RegularisationParameters(13,1)
         dipshow(3,aRecon);drawnow();
@@ -97,6 +104,10 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
     
     %% select the appropriate subdata regions
     myImg=myim{viewNum};  % This does not cost any time or memory
+%     if any(aResampling~=1)
+%         svecsize = floor(svecsize .* aResampling);
+%         NewSize=svecsize; %Aurelie 21.03.2014. Will make myillu the right size, but not the psf
+%     end
     myOtf=otfrep{1+mod(viewNum-1,length(otfrep))};  % This does not cost any time or memory. If only one otf is there it will always be used
     if ~isempty(myillu)
         myIllum=myillu{1+mod(viewNum-1,length(myillu))};
@@ -104,25 +115,29 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
         myIllum=1;
     end
     
-    if viewNum==1 && (isempty(ToEstimate) || ToEstimate==0 || ToEstimate==2) % Object or OTF estimate
+    if viewNum==1 && (isempty(ToEstimate) || ToEstimate==0 || ToEstimate==2) && (isempty(myillu))% Object or OTF estimate
         if isreal(aRecon) && (norm(size(myOtf)-size(aRecon))~=0)
             ftRecon=rft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
             if any(aResampling~=1)
                 ftRecon=rft_resize(ftRecon,1./aResampling);  % if the user wants to use a different reconstruction grid
             end
+            measSum=measSums{1};
+            measSumSqr=measSumsSqr{1};
         else
             ftRecon=ft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
+            measSum=measSums{viewNum};
+            measSumSqr=measSumsSqr{viewNum};
         end
     end
     %% first we need to apply the forward model
-    Recons = FwdModel(aRecon,ftRecon,myIllum,myOtf,norm3D);  % This performs the convolution of the object (multiplied with illumination) with the psf
+    Recons = FwdModel(aRecon,ftRecon,myIllum,myOtf,norm3D^2/norm3DObj);  % This performs the convolution of the object (multiplied with illumination) with the psf
     % Functions to be hidden behind FwdModel() are FwdObjConvPSF() FwdObjConvASF() FwdObjIlluConfPSF() and FwdObjIlluConfASF()
     %% Now calculate the residuum depending on the deconvolution method
     [myError,residuum] = CalcResiduum(Recons,myImg,DMask); % May change Recons to force positivity. Possible Functions are ResidPoisson, ResidLeastSqr, ResidWeightedLeastSqr
     clear Recons;
     err=err+myError;
     %% Apply the Transpose (Bwd Model)
-    myGrad=BwdModel(residuum,aRecon,ftRecon,myIllum,myOtf,norm3D);  % This performs the convolution of the residuum with the psf
+    myGrad=BwdModel(residuum,aRecon,ftRecon,myIllum,myOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
     if viewNum==numViews
        clear ftRecon;
     end
@@ -134,7 +149,11 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
 
     if isempty(ToEstimate) || ToEstimate==0  % object estimate has to be summed for all views
         thegrad=thegrad + myGrad;
+        % myGrad=BwdExtraModel(myGrad,1);  % The background model is applied after the for loop for all instances    
+        % thegrad=thegrad + myGrad;
         clear myGrad;
+    else
+        myGrad=BwdExtraModel(myGrad,viewNum);  % Possibly changes due to Sqr or Phase  ('ForcePos' or 'ForcePhase')    
     end
     clear myImg;
     
@@ -148,12 +167,14 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
         if ToEstimate==1
             [myReg,myRegGrad]=Regularize(myIllum,BetaVals);
         else
-            mypsf=ifftshift(rift(myOtf));
-            %mypsf=circshift(mypsf,floor(size(mypsf)/2));
-            [myReg,myRegGrad]=Regularize(mypsf,BetaVals);  % Should this better be the PSF ?
-            % myRegGrad=circshift(myRegGrad,-floor(size(mypsf)/2));  % back to the coordinate system of the gradient
-            myRegGrad=fftshift(myRegGrad);
-            clear mypsf;
+            if NeedsRegularisation()
+                mypsf=ifftshift(rift(myOtf));
+                %mypsf=circshift(mypsf,floor(size(mypsf)/2));
+                [myReg,myRegGrad]=Regularize(mypsf,BetaVals);  % Should this better be the PSF ?
+                % myRegGrad=circshift(myRegGrad,-floor(size(mypsf)/2));  % back to the coordinate system of the gradient
+                myRegGrad=fftshift(myRegGrad);
+                clear mypsf;
+            end
         end
         agradIdx=viewNum-1-(currentSumCondIdx-1);
         if ToEstimate==2 || isempty(my_sumcond) || viewNum ~= my_sumcond{currentSumCondIdx}  % OTF estimation or illumination estimation without a sumcondition
@@ -172,9 +193,12 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
     end
     
 end  % viewNum
+if isempty(ToEstimate) || ToEstimate==0  % object estimate has to be summed for all views
+   thegrad = BwdExtraModel(thegrad,1);
+end
 clear DMask;
 
 err = double(NormFac*err);
 
-thegrad=ConvertGradToVec(NormFac*thegrad);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+thegrad = NormFac * ConvertGradToVec(thegrad);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
 

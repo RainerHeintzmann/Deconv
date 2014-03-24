@@ -7,6 +7,7 @@ function AssignFunctions(RegularisationParameters,ToEstimate)
 
 global FwdModel; % A function (pointer) which is assigned outside. Options are FwdObjConvPSF() FwdObjConvASF() FwdObjIlluConfPSF() and FwdObjIlluConfASF()
 global BwdModel;  % This performs the convolution of the residuum with the psf. Options are BwdModel() are BwdResidObjConvPSF() BwdResidObjConvASF() BwdResidObjIlluConvPSF() BwdResidObjIlluConvASF() BwdResidIlluObjConvPSF() BwdResidIlluObjConvASF()
+global BwdExtraModel;  % Here changes to the Bwd projection are applied to, such as Sqr or Phase
 global CalcResiduum; % A function (pointer) which is assigned outside. Options are ResidPoisson(), ResidLeastSrq(), ResidWeightedLeastSqr()
 global ConvertInputToModel; % Will change either aRecon, myillu or otfrep. It can be convertVecToObj, convertVecToIllu, convertVecToPSF
 global ConvertGradToVec; % Contains the routine to convert the model (e.g. the gradient of the object) into the vector to iterate
@@ -43,8 +44,13 @@ if ToEstimate==0  % Object is estimated, illumination and psf are assumed to be 
             ConvertInputToModel=@convertVecToCpxObj;  % This is a packed complex vector
             ConvertModelToVec=@convertCpxObjToVec;
         else
-            ConvertInputToModel=@convertRVecToCpxObj;  % This is only a real valued vector but expanded to complex.
-            ConvertModelToVec=@convertCpxObjToRVec;
+            if RegularisationParameters(15,1) % ForcePhase, Forces object to be a phase only object
+                ConvertInputToModel=@convertVecToObj;  % This is only a real valued vector but expanded to complex.
+                ConvertModelToVec=@convertObjToVec;
+            else
+                ConvertInputToModel=@convertRVecToCpxObj;  % This is only a real valued vector but expanded to complex.
+                ConvertModelToVec=@convertCpxObjToRVec;
+            end
         end
     else  % data is real valued. Thus PSF is also real
         if RegularisationParameters(7,1) % 'Complex' reconstruction but real valued data
@@ -128,10 +134,37 @@ if isempty(ConvertGradToVec);
     ConvertGradToVec=ConvertModelToVec;    
 end
 
+BwdExtraModel=@(grad,viewNum)NoChange(grad,viewNum);
+
+if RegularisationParameters(15,1) % ForcePhase, Forces object to be a phase only object
+    ConvertInputToModel=@(vec)ApplyPhaseModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
+    % ConvertGradToVec=@(grad)ApplyPhaseModelGrad(grad,ConvertGradToVec);
+    % BwdModel=@(grad)ApplyPhaseModelBwd(grad,viewNum,BwdModel);
+    BwdExtraModel=@(grad,viewNum)ApplyPhaseModelBwd(grad,viewNum,BwdExtraModel);
+    ConvertModelToVec=@(model)ApplyInversePhaseModel(model,ConvertModelToVec);
+end
+
 if RegularisationParameters(9,1) % ForcePos, Forces object to be positive by estimating only its squareroot
     ConvertInputToModel=@(vec)ApplySqrModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
-    ConvertGradToVec=@(grad)ApplySqrModelGrad(grad,ConvertGradToVec);
+    %ConvertGradToVec=@(grad)ApplySqrModelGrad(grad,ConvertGradToVec);
+    BwdExtraModel=@(grad,viewNum)ApplySqrModelBwd(grad,viewNum,BwdExtraModel);
     ConvertModelToVec=@(model)ApplyInverseSqrModel(model,ConvertModelToVec);
+end
+
+if RegularisationParameters(16,1)  % NormMeasSum, normalizes the result of the FwdModel befor calculating the error and residuum    
+    if ~isreal(myim{1})
+        error('NormMeasSum can only be applied to real valued measurements. Choose NormMeasSumSqr for complex valued data');
+    end
+    FwdModel=@(aRecon2,ftRecons,myIllum,myOtf,norm3D)FwdNormMeasSum(aRecon2,ftRecons,myIllum,myOtf,norm3D,FwdModel); % normalizes the result of the FwdModel befor calculating the error and residuum
+    BwdModel = @(residuum,aRecon,ftRecon,myIllum,myOtf,norm3D) BwdNormMeasSum(residuum,aRecon,ftRecon,myIllum,myOtf,norm3D,BwdModel); % accounts for FwdNormcomp in the calculation of the gradient
+end
+
+if RegularisationParameters(17,1)  % NormMeasSumSqr, normalizes the result of the FwdModel befor calculating the error and residuum    
+    if RegularisationParameters(16,1)
+        error('Only one of NormMeasSum or NormMeasSumSqr can be used.');
+    end
+    FwdModel=@(aRecon2,ftRecons,myIllum,myOtf,norm3D)FwdNormMeasSumSqr(aRecon2,ftRecons,myIllum,myOtf,norm3D,FwdModel); % normalizes the result of the FwdModel befor calculating the error and residuum
+    BwdModel = @(residuum,aRecon,ftRecon,myIllum,myOtf,norm3D) BwdNormMeasSumSqr(residuum,aRecon,ftRecon,myIllum,myOtf,norm3D,BwdModel); % accounts for FwdNormcomp in the calculation of the gradient
 end
 
 if RegularisationParameters(12,1) ~= 0.0 % Background is included in . Nothing needs to be done for the Bwd direction

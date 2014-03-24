@@ -5,7 +5,7 @@
 sX=10;
 sY=10;
 NumIm=2;
-
+rng(0);
 obj=dip_image(rand(sX,sY));
 
 %%estimate=mean(img)+img*0;  % Careful: This yields rubbish with estimating Regularisations
@@ -14,13 +14,15 @@ obj=dip_image(rand(sX,sY));
 
 %obj=newim(9,9);obj(4,4)=1;
 % estimate=dip_image(rand(sX,sY)+i*rand(sX,sY));  % new OTF estimate (everywhere, not only in the mask)
+rng(1);
 objestimate=dip_image(rand(sX,sY));  % current (old) reconstruction estimate
+rng(2);
 illu=dip_image(rand(sX,sY,NumIm));   % an illumination distribution
 
 %%   To not rerun the random generators
 
 %disableCuda();
-h=obj*0;h(2,2)=1;h=gaussf(h);
+h=obj*0;h(3,2)=1;h=gaussf(h);
 img=sqrt(prod(size(obj)))*real(ift(ft(obj) .* ft(h)));
 %oimg=convolve(obj,h);
 
@@ -60,8 +62,10 @@ global OTFmask;
 OTFmask=PupilInterpolators.Mask;
 
 mysize=size(PupilInterpolators.indexList2D,2);
+rng(3);
 VecOTF=(rand(2*mysize,1)-0.5)*2;  % for real and imaginary part
 myVec=transpose(VecOTF);
+myVec(1:mysize)=1;myVec(mysize+1:end)=0;
 % myVec=double(reshape(estimate(OTFmask),prod(size(estimate)))); % object estimate
 
 %%
@@ -83,7 +87,7 @@ aRecon=cuda(aRecon);
 end
 %%
 clear mygrad;
-eps = 1e-3;
+eps = 2e-3;
 for d=1:size(myVec,2)
     UnitD = myVec*0;
     UnitD(d) = 1;
@@ -109,6 +113,6 @@ end
 
 cat(3,grad,mygrad)
 
-relerror = (mygrad - grad') ./ max(abs(grad'));
+relerror = (mygrad - grad) ./ mean(abs(grad));
 fprintf('Max Error :%g\n',max(abs(relerror)))   % Problems are caused by the hessian operator on finite arrays at the edges
 fprintf('Max Center Error :%g\n',max(abs(relerror(1:end-1,1:end-1))))   % Problems are caused by the hessian operator on finite arrays at the edges

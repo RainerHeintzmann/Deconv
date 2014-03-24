@@ -9,7 +9,7 @@ global myillu_mask;
 global savedInput;
 global RegularisationParameters;
 
-DataSize=size(myim{1});
+DataSize=size(myillu{1});
 DataLength=prod(DataSize);
 if ~(isempty(myillu_mask) || numel(myillu_mask)==0 ) % This means the vector refers to intensity data
     error('A Fourier-mask is defiend even though the vector represents real-space data. Please clear the global variable myillu_mask.');
@@ -23,7 +23,7 @@ sumviews=0;
 currentSumCondIdx=1;
 PSize=DataSize;PSize(2)=DataSize(1);PSize(1)=DataSize(2);  % To avoid the transpose
 for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
-    if v ~= myillu_sumcond{currentSumCondIdx}
+    if isempty(myillu_sumcond) || v ~= myillu_sumcond{currentSumCondIdx}
         myillu{v}=dip_image(reshape(myinput(1+DataLength*(v-currentSumCondIdx):DataLength*(v-currentSumCondIdx+1)),PSize),'single');  % The reconstruction can be up to 3D, whereas the data might be 4D
         asum=asum+myillu{v};
         sumviews=sumviews+1;

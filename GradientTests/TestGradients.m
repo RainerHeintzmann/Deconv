@@ -1,5 +1,7 @@
+%03.03.2014: Test new deconv toolbox OK. Aurelie
+
 %clear all
-%disableCuda();
+disableCuda();
 
 sX=10;
 sY=10;
@@ -42,6 +44,7 @@ global NormFac;NormFac=1.0;   % Normalisation factor
 global ToEstimate;ToEstimate=0;   % 0 is object, 1 is object with knonwn illu, 2 is illu
 ToReg=0;  % 0: Object, 1 means illu
 global aRecon;aRecon=objestimate;   % 0 is object, 1 is illu
+global ComplexPSF; ComplexPSF=0; %check that this is correct. Aurelie
 global RegularisationParameters;
 RegularisationParameters=ParseRegularisation(MyObjReg,ToReg);
 AssignFunctions(RegularisationParameters,ToEstimate)

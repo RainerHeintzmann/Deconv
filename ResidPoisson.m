@@ -2,7 +2,7 @@ function [myError,residuum]=ResidPoisson(Recons,myImg,DMask)
 % The first one below is numerically very unstable
 % myError =sum(Recons-myImg .* log(Recons));  % fast version of Czesar's i-divergence omitting constants
 Recons=Recons+0;  % TO PREVENT MODIFICATION OF Recons as an argument.
-eps=1e-2;  % 1e-7 . To avoid to take log(0) in the Sterling approximation. If eps is too small, the ratio can generate quite high values in the ratio
+eps=1e-8;  % 1e-7 . To avoid to take log(0) in the Sterling approximation. If eps is too small, the ratio can generate quite high values in the ratio
 amask=(Recons<eps);
 Recons(amask)=eps; % Modifies the data!
 clear amask;

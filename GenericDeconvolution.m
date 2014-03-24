@@ -18,8 +18,12 @@
 %       'AR',[lambda,gamma]: EM-regularization according to Arigovindan et al., PNAS, 2013. penalty=ln(epsR+ (|f|^2+ SumHessianSqr)),  SumHessianSqr= (d^2/dxdx f)^2 + (d^2/dydy f)^2+ (2d^2/dxdy f)^2
 %       'Bg', value: Fixed background value (to get the Poisson Statistics right)
 %       'ForcePos',[] : Will make the object the square of an auxiliary function, which is then estimated
-%       'Complex',[] : Will allow the object to be an aplitude object. Note that even for complex valued data the object can remain to be real.
+%       'ForcePhase',[] : Will make the object exp(1i*f) of an auxiliary function f, which is then estimated
+%       'Complex',[] : Will allow the object (if an auxiliary function is used, the auxiliary function) to be an aplitude object. Note that even for complex valued data the object can remain to be real.
 %       'Resample',[sx sy sz] : Specifies the resampling to be used for reconstructed object (only for object at the moment)
+%       'NormMeasSum',[] : Normalizes the result of the FwdModel to the sum of all measured values befor calculating the error and residuum
+%       'NormMeasSumSqr',[] : Normalizes the result of the FwdModel to the sqrt of the sum of squares of all measured values befor calculating the error and residuum
+%       'NormFac',[NF] : Allows to set the NormFactors (rather than automatic determination. Negative values mean automatic determination for the respective estimation steps.
 %
 % betas: Vector of beta values to vary the weight of different directions (e.g. anisotropic sampling). This should correspond to pixelsizes, for example normalized to the x-pixel size
 % or optical resolution
@@ -42,7 +46,8 @@
 %     myDeconvGP=GenericDeconvolution(img,h,85,'Poisson',[],{'GR',0.01;'ForcePos',[];'Resample',2},[1,1,1],[0 0 0],[],useCuda); gtp=cat(1,img{1},myDeconvGP)
 % For complex data and complex PSF
 %     myDeconv=GenericDeconvolution(img,h,15,'LeastSqr',[],{'Complex',[]},[1 1 1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconv)
-
+%
+% Contributing Authors: Rainer Heintzmann, Aurelie Jost, Polina Feldmann
 
 %***************************************************************************
 %   Copyright (C) 2008-2009 by Rainer Heintzmann                          *
@@ -66,7 +71,7 @@
 
 function [res,resIllu,resPSF,evolObj,evolIllu,evolOTF]=GenericDeconvolution(image,psf,NumIter,Method,Update,Regularisation,betas,borderSizes,Variances,useCuda,keepExtendedStack)
 global myim; % Cell array of the images
-global otfrep; % Cell array of the images
+global otfrep; % Cell array of the otfs
 global DeconvMethod;
 global aResampling; 
 global RegularisationParameters;
@@ -85,14 +90,18 @@ global cuda_enabled;  % also to see if cuda is installed
 global useCudaGlobal;useCudaGlobal=useCuda;
 global ConvertInputToModel; % Will change either aRecon, myillu or otfrep. It can be convertVecToObj, convertVecToIllu, convertVecToPSF
 global ConvertModelToVec; % Contains the routine to convert the model (e.g. the gradient of the object) into the vector to iterate
+global AssignToGlobal; % Assigns the converted data to the appropriate global variable and return an empty gradient vector
 
 %global ComplexObj;    % Can the object to estimate be complex valued?
 %global IntensityData;  % Is the supplied data the abs square of the object to estimate?
 %global ForcePos;
 %ForcePos=0;         % Will only be set to one in the ParseRegularisation routine, if chosen.
 global ComplexPSF; % will be set, if PSF is complex valued
+global measSumsSqr;
+global measSums;
 DeconvMethod=Method;
 aResampling=1; 
+msevalue=0;
 
 if nargin < 11
     keepExtendedStack=0;
@@ -152,7 +161,13 @@ RegularisationParameters=RegObj;
 % in the inner loop "GenericErrorAndDeriv"
 dip_setboundary('periodic')  % Establishes Periodic Boudary conditions.
 
-borderSizes=borderSizes*2;
+if isa(borderSizes,'dip_image')
+    fprintf('Mask provided as bordersize. Using mask instead of generating borders');
+    DeconvMask=borderSizes;
+    borderSizes=0 .* size(DeconvMask);
+else
+    borderSizes=borderSizes*2;
+end
 
 if useCuda
     % enableCuda();
@@ -198,11 +213,6 @@ myim={};  % in case some previous function stored more values in here, we need t
 % unix('touch cudaArith.cu; touch cuda_cuda.c; make'); clear classes  % compile command, just to copy and paste it
 if iscell(image) || isa(image,'dip_image_array')
     myim=image;
-    if useCuda
-        for v=1:length(myim)
-            myim{v}=cuda(myim{v});
-        end
-    end
 else
     for v=1:size(image,4)
         if length(size(image))>3
@@ -210,12 +220,10 @@ else
         else
             myim{v}=image;
         end
-        if useCuda
-            myim{v}=cuda(myim{v});
-        end
     end
 end
 clear image;
+myim=ConditionalCudaConvert(myim,useCuda); %Seems like there was a case mismatch. Aurelie 03.03.2014
 
 if ~(iscell(psf) || isa(psf,'dip_image_array'))
     for v=1:size(psf,4)
@@ -224,33 +232,25 @@ if ~(iscell(psf) || isa(psf,'dip_image_array'))
         else
             n{v}=psf;
         end
-        if useCuda
-            n{v}=cuda(n{v});
-        end
     end
     psf=n;
-else
-   if useCuda
-        for v=1:length(psf)
-            psf{v}=cuda(psf{v});
-        end
-    end
-
+    clear n;
 end
+psf=ConditionalCudaConvert(psf,useCuda); %Seems like there was a case mismatch. Aurelie 03.03.2014
 
 OrigSize=size(myim{1});
 if length(borderSizes) > length(OrigSize)
    OrigSize(end+1:length(borderSizes))=1;
 end
 %% Extend the boarder
-NewSize=OrigSize;  % Will also be needed for object starting vector
-NewDataSize=OrigSize;  % Will also be needed for object starting vector
-if isa(borderSizes,'dip_image')
-    fprintf('Mask provided as bordersize. Using mask instead of generating borders');
-    DeconvMask=borderSizes;    
-else if norm(borderSizes) > 0
-        NewSize=floor(OrigSize+borderSizes);
-        NewDataSize=NewSize;
+NewSize=floor(OrigSize+borderSizes); % Will also be needed for object starting vector
+NewDataSize=NewSize;  % Will also be needed for object starting vector
+if any(aResampling~=1)
+   NewIlluSize = floor(NewSize .* aResampling);
+else
+   NewIlluSize=NewSize;
+end
+if norm(borderSizes) > 0
         if (1)  % Here the "one-slice speedup" trick can be disabled or enabled
             if length(NewDataSize) > 2 && OrigSize(3) == 1
                 fprintf('Border regions: Thick slice speedup possible! Will keep Z-datasize of only one slice.\n');
@@ -277,10 +277,10 @@ else if norm(borderSizes) > 0
         if exist('myillu') && ~isempty(myillu)   % illu has to use Object size = NewSize, not NewDataSize
             for v=1:length(myillu)
                 sillu=size(myillu{1+mod(v-1,numel(myillu))});
-                sillu(end+1:length(NewSize))=1;
-                if (v <= numel(myillu)) && norm(sillu-NewSize) ~= 0
+                sillu(end+1:length(NewIlluSize))=1;
+                if (v <= numel(myillu)) && norm(sillu-NewIlluSize) ~= 0
                     fprintf('Warning: View %d, The given illumination distribution does not correspond in size to the extended border region. Cyclically expanding to fix this.\n',v)
-                    myillu{v}=extract(myillu{v},NewSize,[],'cyclic');
+                    myillu{v}=extract(myillu{v},NewIlluSize,[],'cyclic');
                 end
             end
         end
@@ -289,6 +289,12 @@ else if norm(borderSizes) > 0
         end
     else
         for v=1:numel(psf)   % PSF has to use NewSize, not NewDataSize
+%             spsf=size(psf{1+mod(v-1,numel(psf))});
+%             OrigSize(end+1:length(spsf))=1;
+%             compSize=OrigSize; %Size to compare here. Aurelie 21.03.2014
+%             if any(aResampling~=1) %Aurelie 21.03.2014. Other the psf gets cut to the datasize (even though it was correctly calculated)
+%                 compSize=floor(compSize .* aResampling);
+%             end
             spsf=size(psf{1+mod(v-1,numel(psf))});
             OrigSize(end+1:length(spsf))=1;
             if norm(spsf-OrigSize)~=0
@@ -296,7 +302,6 @@ else if norm(borderSizes) > 0
                fprintf('Warning: View %d, PSF has incorrect size. Adapting the size of the PSF\n',v);
             end
         end
-    end
 end
 
 %% Normalize PSF
@@ -327,19 +332,11 @@ otfrep=cell(numel(psf),1);
 
 %%
 for v=1:numel(psf)
-    if useCuda
-       if ComplexPSF
-           otfrep{v}=ft(cuda(psf{v}));  
-       else
-           otfrep{v}=rft(ifftshift(cuda(psf{v})));  % The fft shift is necessary, since the rft assumes a different coordinate zero position
-       end
+    if ComplexPSF
+        otfrep{v}=ft(psf{v});
     else
-       if ComplexPSF
-           otfrep{v}=ft(psf{v});
-       else
-           % otfrep{v}=rft(dip_image(fftshift(double(psf{v})))); % The fft shift is necessary, since the rft assumes a different coordinate zero position
-           otfrep{v}=rft(ifftshift(psf{v})); % The fft shift is necessary, since the rft assumes a different coordinate zero position
-       end
+        % otfrep{v}=rft(dip_image(fftshift(double(psf{v})))); % The fft shift is necessary, since the rft assumes a different coordinate zero position
+        otfrep{v}=rft(ifftshift(psf{v})); % The fft shift is necessary, since the rft assumes a different coordinate zero position
     end
     clear psf{v};  % These are not needed any longer. Free them, especially if converted to cuda
     if length(NewDataSize) > 2 && OrigSize(3) == 1 && (NewDataSize(3) == OrigSize(3))
@@ -352,30 +349,12 @@ for v=1:numel(psf)
     end
 end
 
-
-if useCuda
-    for v=1:numel(myillu_mask)
-        if ~isa(myillu_mask{v},'cuda')
-            myillu_mask{v}=cuda(myillu_mask{v});
-        end
-    end
-    for v=1:numel(myillu)
-        if ~isa(myillu{v},'cuda')
-            myillu{v}=cuda(myillu{v});
-        end
-    end
-else
-    for v=1:numel(myillu_mask)
-        if isa(myillu_mask{v},'cuda')
-            myillu_mask{v}=dip_image_force(myillu_mask{v}) ~= 0;
-        end
-    end
-    for v=1:numel(myillu)
-        if isa(myillu{v},'cuda')
-            myillu{v}=dip_image_force(myillu{v});
-        end
-    end
-end
+% if ~isempty(myillu_mask) %If there is a zero in the size of an array, cuda_cuda will give an error. Aurelie 03.03.2014
+    myillu_mask=ConditionalCudaConvert(myillu_mask,useCuda,1);
+% end
+% if ~isempty(myillu) %If there is a zero in the size of an array, cuda_cuda will give an error. Aurelie 03.03.2014
+    myillu=ConditionalCudaConvert(myillu,useCuda);
+% end
 
 mysum=0;
 if ~isempty(DeconvMask)
@@ -383,11 +362,17 @@ if ~isempty(DeconvMask)
 else
     myDivisor=prod(OrigSize);
 end
+measSums=cell(length(myim),1);
+measSumsSqr=cell(length(myim),1);
 for v=1:length(myim)
+    measSums{v}=sum(myim{v},DeconvMask);
+    if RegObj(17,1) || RegIllu(17,1) || RegOTF(17,1)
+        measSumsSqr{v}=sqrt(sum(real(myim{v} .* conj(myim{v})),DeconvMask));
+    end
     if ~isempty(myillu)
-        mysum=mysum+sum(myim{v},DeconvMask)/myDivisor/(sum(myillu{v})/prod(OrigSize));  % use the old size because of the effect of zero padding and the normalisation of the psf
+        mysum=mysum+measSums{v}/myDivisor/(sum(myillu{v})/prod(OrigSize));  % use the old size because of the effect of zero padding and the normalisation of the psf
     else
-        mysum=mysum+sum(myim{v},DeconvMask)/myDivisor;  % use the old size because of the effect of zero padding and the normalisation of the psf
+        mysum=mysum+measSums{v}/myDivisor;  % use the old size because of the effect of zero padding and the normalisation of the psf
     end
 end
 mymean=mysum/length(myim);  % Force it to be real
@@ -396,10 +381,7 @@ if RegObj(6,1)  % means reuse previous result
     startVec=aRecon;
 else
     if (1)
-        svecsize=NewSize; % as defined above.  Not size(myim{1}) is the object lives in a different space
-        if any(aResampling~=1)
-            svecsize = floor(svecsize .* aResampling);
-        end
+        svecsize=NewIlluSize; % as defined above.  Not size(myim{1}) is the object lives in a different space
         if RegObj(7,1)  % this means a complex object shall be reconstructed. Thus the start vector also needs to be complex
             startVec=newim(svecsize,'scomplex');
         else
@@ -445,13 +427,10 @@ startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a line
 % Randomized starting vector helps sometime for Poisson, but seems bad as HF noise can end in Checkerboard patterns
 % startVec=startVec + mymean*rand(size(startVec))/10;   % Introduce some extra noise. This sometimes helps the initial gradient
 
-if useCuda
-    if ~isempty(DeconvMask)
-        DeconvMask=cuda(DeconvMask);
-    end
-    startVec=cuda(startVec);
-    set_ones_cuda(useCuda); set_zeros_cuda(useCuda);   % make sure that the zeros and ones function from cuda is used.
+if ~isempty(DeconvMask)
+        DeconvMask=ConditionalCudaConvert(DeconvMask,useCuda);
 end
+startVec=ConditionalCudaConvert(startVec,useCuda);
 
 tic
 
@@ -468,13 +447,23 @@ clear mymean;
 %lambdaPenalty=0; % 1e6;
 if Update(1)~='B'
     %NormFac=0.06;
-    if (0)
-        [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
-        aNorm=1/(norm(agrad)/numel(agrad));
-        NormFac=aNorm;
+    if (RegularisationParameters(18,1) <= 0)
+            NormFac=1;            
+            RegularisationParameters=RegObj;
+            if isempty(myillu) || isempty(myillu{1})
+                AssignFunctions(RegularisationParameters,0); % To estimate is Blind Object Step
+            else
+                AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
+            end
+            [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+            NormFac=1/(norm(agrad)/numel(agrad))/1e6; % /1e6
+        %[val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+        %aNorm=1/(norm(agrad)/numel(agrad));
+        %NormFac=aNorm;
     else
-        NormFac=0.06;  % 1e-6
+        NormFac=RegularisationParameters(18,1); %0.06;  % 1e-6
     end
+    fprintf('\nObject NormFac is %g\n',NormFac);
     RegularisationParameters=RegObj;
     if isempty(myillu)
         AssignFunctions(RegularisationParameters,0); % To estimate is Object (non-blind)
@@ -484,8 +473,8 @@ if Update(1)~='B'
 
     [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter(1));
 
-    ConvertInputToModel(myRes); % Will save myRes to aRecon and correct for possible squaring ...
-    if nargout > 2
+    AssignToGlobal(ConvertInputToModel(myRes)); % Will save myRes to aRecon and correct for possible squaring ...
+    if nargout > 3
           evolObj=myoutput.trace.fval;
     end
 else % Do a blind estimation of the unknown intensity or OTF distribution
@@ -512,11 +501,11 @@ end
 
         if RegIllu(6,1)
             VecIllu=myillu;
-        elseif NumIter(4) > 0 % ~isempty(Regularisation{2})  % This means that a spatially variing illumination is part of the model. Thus a start vector is needed
+        elseif NumIter(4) ~= 0 % ~isempty(Regularisation{2})  % This means that a spatially variing illumination is part of the model. Thus a start vector is needed
             if useCuda
-                VecIllu = repmat(cuda(dip_image(1)),[NewSize numel(myim)-length(myillu_sumcond)]);
+                VecIllu = repmat(cuda(dip_image(1)),[NewIlluSize numel(myim)-length(myillu_sumcond)]);
             else
-                VecIllu = repmat(dip_image(1),[NewSize numel(myim)-length(myillu_sumcond)]);
+                VecIllu = repmat(dip_image(1),[NewIlluSize numel(myim)-length(myillu_sumcond)]);
             end
             %         if isa(myim{1},'cuda')
             %             VecIllu=ones_cuda(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
@@ -526,31 +515,32 @@ end
             %
             AssignFunctions(RegularisationParameters,2); % Illumination estimate for the startVec estimation below.
             VecIllu=ConvertModelToVec(VecIllu);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
-            AssignFunctions(RegularisationParameters,0); % Illumination estimate for the startVec estimation below.
+            AssignFunctions(RegularisationParameters,0); % Object estimate for the startVec estimation below.
             %
             sumSqr=0;
             for v=1:length(myim)
-                myillu{v}=newim(NewSize)+1;  % start with uniform illumination
+                myillu{v}=newim(NewIlluSize)+1;  % start with uniform illumination
                 %myillu{v}=myim{v}*0+2*rand(size(myim{1},1),size(myim{1},1));  % start with uniform illumination
                 sumSqr=sumSqr+sum(myim{v}.*myim{v});   % for calculating the normalisation
                 % VecIllu(1+DataSize*(v-1):DataSize*v)=(double(reshape(myillu{v},[DataSize 1])))';
             end
         end
         %% estimate a good NormFac to use
-        if (1)
+        if (RegularisationParameters(18,1) <= 0)
             NormFac=1;
             RegularisationParameters=RegObj;AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
-            [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+            [msevalue,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
             aNorm=1/(norm(agrad)/numel(agrad))  / 100;
-            fprintf('Object NormFac is %g\n',aNorm);
         else
-            aNorm=0.06;
+            aNorm=RegularisationParameters(18,1); % 0.06;
             % aNorm=0.0001;
         end
         NormFac=aNorm;
+        fprintf('Object NormFac is %g\n',NormFac);
+        NormFacOld=aNorm;
         
         myRes=startVec;
-        ConvertInputToModel(myRes); % ,size(myim{1})  % will square the startvec, (if needed) to produce aRecon
+        AssignToGlobal(ConvertInputToModel(myRes)); % ,size(myim{1})  % will square the startvec, (if needed) to produce aRecon
 
         evolObj=[];
         evolIllu=[];
@@ -558,6 +548,8 @@ end
             ToEstimate=0;  % object estimation step
             %NormFac=0.06;
             NormFac=aNorm;
+            fprintf('Object NormFac is %g, Prev. Error was %g\n',NormFac,msevalue*NormFac/NormFacOld);
+            NormFacOld=NormFac;
             %NormFac=1/sumSqr;
             InstantUpdate=1;  % defines whether the object update is done directly after the object iteration or only after illumination has been updated as well.
             if n==1
@@ -572,32 +564,37 @@ end
                 RegularisationParameters=RegObj;
                 AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
                 [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,myRes,NumObjIter);  % Will also alter aRecon
-                if nargout > 2
+                if nargout > 3
                     evolObj =[evolObj ; myoutput.trace.fval];
                 end
             end
             %[myRes,msevalue,moreinfo]=minFunc(@GenericErrorAndDeriv,myRes,optionsObj); % @ means: 'Function handle creation' 
             % aRecon should still be globally set
             if InstantUpdate
-                ConvertInputToModel(myRes); % Will save myRes to aRecon
+                AssignToGlobal(ConvertInputToModel(myRes)); % Will save myRes to aRecon
                 dipshow(3,aRecon);drawnow();
             else
                 aRecon=savedRecon; % make sure it does not get overwritten
             end
             %saveRecon=aRecon;
-            if NumIter(4) > 0
+            if NumIter(4) ~= 0
                 ToEstimate=1;  % illumination estimation step
                 NumIlluIter=NumIter(4); % SIM 5;  Speckles: 15
                 % aRecon=TheObject;
-                if n==1  % can also be if (1)
-                    NormFac=1;
+                if n==1
                     RegularisationParameters=RegIllu;AssignFunctions(RegularisationParameters,2); % To estimate is Blind Illumination Step
-                    [val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation
-                    IlluNorm=1/(norm(abs(agrad))/numel(agrad));
-                    fprintf('Illu NormFac is %g\n',IlluNorm);
+                    if (RegularisationParameters(18,1) <= 0) % can also be if (1)
+                        NormFac=1;
+                        [val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation
+                        IlluNorm=1/(norm(abs(agrad))/numel(agrad))/1000;
+                    else
+                        IlluNorm=RegularisationParameters(18,1);
+                    end
                     %[val,agrad]=GenericErrorAndDeriv(VecIllu);  % is used to determine a useful value of the normalisation
                     %(norm(agrad)/numel(agrad))
                 end
+                fprintf('Illu NormFac is %g, Prev. Error was %g\n',IlluNorm,msevalue*NormFac/NormFacOld);
+                NormFacOld=NormFac;
                 %NormFac=IlluNorm;
                 %% Illumination estimation step
                 if size(NumIter,2) > 3
@@ -605,26 +602,27 @@ end
                     % NormFac=0.1; % /sumSqr;
                     fprintf('\n\nIterating Illumination, cycle %d\n',n);
                     RegularisationParameters=RegIllu;AssignFunctions(RegularisationParameters,2); % To estimate is Blind Illumination Step
-                    NormFac=IlluNorm*6e-5;
+%                     NormFac=IlluNorm*6e-5;
+                    NormFac=IlluNorm; 
                     [VecIllu,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecIllu,NumIlluIter);
-                    if nargout > 2
+                    if nargout > 3 && ~isempty(myoutput)
                         evolIllu=[evolIllu ; myoutput.trace.fval];
                     end
                     %[VecIllu,msevalue,moreinfo]=minFunc(@GenericErrorAndDeriv,VecIllu,optionsIllu); % @ means: 'Function handle creation'
-                    ConvertInputToModel(VecIllu);  % writes result into the myillu images
+                    AssignToGlobal(ConvertInputToModel(VecIllu));  % writes result into the myillu images
                     illu=cat(4,myillu{:});
                     dipshow(4,illu);drawnow();
                     clear illu;
                     if ~InstantUpdate
                         AssignFunctions(RegularisationParameters,1); % To estimate is Blind Illumination Step
-                        ConvertInputToModel(myRes);
+                        AssignToGlobal(ConvertInputToModel(myRes));
                         dipshow(3,aRecon);drawnow();
                     end
                 end
             end
             %% Estimating the OTF
             ToEstimate=2;  % OTF estimation step
-            if size(NumIter,2) > 4  && NumIter(5) > 0
+            if size(NumIter,2) > 4  && NumIter(5) ~= 0
                 % NormFac=1e-10/sum(aRecon);
                 NumOTFIter=NumIter(5); % SIM 5;  Speckles: 15
                 fprintf('\n\nIterating PSF, cycle %d\n',n);
@@ -652,26 +650,31 @@ end
                     end
                     startVec=VecOTF;
                     noFFT=0;
-                    NormFac=1;
-                    [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
-                    NormFacOTF=1/(norm(agrad)/numel(agrad));
-                    fprintf('OTF NormFac is %g\n',NormFacOTF);
+                    if (RegularisationParameters(18,1) <= 0) % can also be if (1)
+                        NormFac=1;
+                        [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+                        NormFacOTF=1/(norm(agrad)/numel(agrad))*1e-8;
+                    else
+                        NormFacOTF=RegularisationParameters(18,1);
+                    end
                 end
-                NormFac=NormFacOTF*1e-8;
+                NormFac=NormFacOTF;
+                fprintf('OTF NormFac is %g, Prev. Error was %g\n',NormFacOTF,msevalue*NormFac/NormFacOld);
+                NormFacOld=NormFac;
                 [VecOTF,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecOTF,NumOTFIter);
                 if nargout > 3
                     evolOTF=[evolOTF ; myoutput.trace.fval];
                 end
                 %[VecIllu,msevalue,moreinfo]=minFunc(@GenericErrorAndDeriv,VecIllu,optionsIllu); % @ means: 'Function handle creation'
-                ConvertInputToModel(VecOTF);  % writes result into the otfrep images
+                AssignToGlobal(ConvertInputToModel(VecOTF));  % writes result into the otfrep images
                 allotf=cat(4,otfrep{:});
+                psf=fftshift(rift(otfrep{1}));
+                dipshow(6,psf(:,floor(size(psf,2)/2),:));
                 dipshow(5,allotf);drawnow();
             end
 
         end            
 end
-%set_ones_cuda(0);
-%set_zeros_cuda(0);
 mytime=toc;
 %fprintf('Time was %g, lambda: %g\n', mytime, lambdaPenalty)
 fprintf('Time was %g\n', mytime)
@@ -681,7 +684,7 @@ fprintf('Time was %g\n', mytime)
 %    convertVecToObj(double_force(myRes));
 %els
     AssignFunctions(RegularisationParameters,1); % To estimate is Blind Illumination Step
-    ConvertInputToModel(myRes);
+    AssignToGlobal(ConvertInputToModel(myRes));
 %end
 
 clear myim;
@@ -691,7 +694,7 @@ if useCuda
     toc
     aRecon=dip_image_force(aRecon);
     toc
-    set_ones_cuda(0); set_zeros_cuda(0);   % make sure that the zeros and ones function from cuda is used.
+    set_ones_cuda(0); set_zeros_cuda(0);   % make sure that the zeros and ones function from matlab is used.
 end
 res=aRecon;
 clear aRecon;
@@ -705,7 +708,7 @@ if (nargout > 1)
     resIllu=myillu;
 end
 
-if (nargout > 1)
+if (nargout > 2)
     resPSF=cell(1,numel(otfrep));
     for c=1:numel(otfrep)
         resPSF{c}=ifftshift(rift(otfrep{c}));

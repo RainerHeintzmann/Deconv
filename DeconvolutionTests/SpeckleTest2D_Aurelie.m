@@ -27,7 +27,7 @@ Zfoc=3; % Slice index of the in-focus information
 Zout=6; % Slice index of the out-of-focus information
 
 % Parameters for the blind SIM deconvolution:
-Norm='LeastSqr'; SearchMethod='B';
+NormMethod='LeastSqr'; SearchMethod='B';
 Lambda=0.01; 
 Pen='GR'; 
 Neg='NegSqr'; 
@@ -44,7 +44,7 @@ SimNum=3; %Simulation number (don't forget to update! Or data gets overwritten)
 use_obj='Spoke'; % Choose the object (possibilities are: Spoke, target, pollen, 3dObj, 2dBead, shell, 3dBead)
 use_kSimPSF=1; %If 1, uses the function kSimPSF to create the psf
 use_speckles=0; %Choose 1 if the illumination is a speckle pattern and 0 if grating pattern
-useCuda=0; %Choose 1 if the cuda toolbox is installed
+useCuda=1; %Choose 1 if the cuda toolbox is installed
 use_sumcond=1; %Choose 1  to introduce a sum condition for the blind deconvolution
 use_mask=1; %Choose 1 to introduce an illumination mask for the blind deconvolution
 do_comp=1; %Compares the blind deconvolution with other modes (if 0, performs only blind deconvolution)
@@ -191,9 +191,19 @@ if do_comp
 % (should perform better than previous one)
 MyObjReg={'ForcePos',[];'TV',[3,0]};
 %MyObjReg={'ForcePos',[];};
+%MyObjReg={'ForcePos',[];};
 MyIlluReg={};
 myillu=myspeckles;
-myDeconvC=GenericDeconvolution(img,h,50,'LeastSqr',[],{MyObjReg,MyIlluReg},[1,1,1],[0 0],[],useCuda); 
+h2d=squeeze(h(:,:,4));
+%h2d=0*h2d;h2d(floor(size(h2d,1)/2),floor(size(h2d,2)/2))=1;
+if (1)
+    myDeconvC=GenericDeconvolution(img,h2d,-0.001,'LeastSqr',[],{{'MaxTestDim',200},MyIlluReg},[1,1,1],[0 0],[],0); 
+    myDeconvC=GenericDeconvolution(img,h2d,-2,'LeastSqr',[],{{'MaxTestDim',200},MyIlluReg},[1,1,1],[0 0],[],1); 
+    myDeconvC=GenericDeconvolution(img,h2d,-0.5,'LeastSqr',[],{{'MaxTestDim',200;'ForcePos',[]},MyIlluReg},[1,1,1],[0 0],[],0); 
+    myDeconvC=GenericDeconvolution(img,h2d,-0.5,'LeastSqr',[],{{'MaxTestDim',200;'ForcePos',[]},MyIlluReg},[1,1,1],[0 0],[],1); 
+else
+    myDeconvC=GenericDeconvolution(img,h2d,50,'LeastSqr',[],{MyObjReg,MyIlluReg},[1,1,1],[0 0],[],useCuda); 
+end
 % deconv_aberrated=cat(4,myDeconvC,obj,img{1}) %Display result
 
 % 3) Wide-field
@@ -247,21 +257,31 @@ end
 %global EvolIllu; %Aurelie 26022013
 %global EvolObj; %Aurelie 26022013
 %MyObjReg={'NegSqr',0.001;'GR',0.02};
-MyObjReg={'ForcePos',[];'TV',[0.1,0]};
-%MyObjReg={};
-MyIlluReg={};
-%MyIlluReg={'NegSqr',0.001};
-%MyIlluReg={'ForcePos',[]};
-NumIter=[20 5 25 5];
-MySampling=[1 1 1e3];
+MyObjReg={'ForcePos',[];'TV',[0.4,0];'NormFac',1e-5};
+MyObjReg={'NormFac',1e-5};
 
-[myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},MySampling,DeconvBorders,[],useCuda,extStack); 
+if (0)
+    % MyIlluReg={'NormFac',1e-5;'MaxTestDim',200};
+    MyIlluReg={'NormFac',1e-5};
+    [myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,[1 5 0 -0.01],NormMethod,SearchMethod,{MyObjReg,MyIlluReg},MySampling,DeconvBorders,[],useCuda,extStack); 
+end
+% MyObjReg={'ForcePos',[];'GS',0.1;'NormFac',1e-5};
+%MyObjReg={'ForcePos',[];'GR',0.001};
+%MyObjReg={};
+%MyIlluReg={'NegSqr',0.001};
+MyIlluReg={'ForcePos',[];'NormFac',1e-5};
+MyIlluReg={'NormFac',1e-5};
+NumIter=[50 5 25 5];
+MySampling=[1 1 10];
+
+
+[myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,NormMethod,SearchMethod,{MyObjReg,MyIlluReg},MySampling,DeconvBorders,[],useCuda,extStack); 
 resIllu=cat(4,myillu{:});
-% [myDeconvBlind2,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
-% [myDeconvBlind resIllu]=GenericDeconvolutionAJ(img,h,NumIter,Norm,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
+% [myDeconvBlind2,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,NormMethod,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
+% [myDeconvBlind resIllu]=GenericDeconvolutionAJ(img,h,NumIter,NormMethod,SearchMethod,{MyObjReg,MyIlluReg},[1,1,1],DeconvBorders,[],useCuda,extStack); 
 % st=cat(4,myDeconvWF/max(myDeconvWF),myDeconvBlind/max(myDeconvBlind),myDeconvC/max(myDeconvC),obj/max(obj),myspeckles{1}/max(myspeckles{1}),img{1}/max(img{1}))
 
-% Plots evolution of the cost functional (Aurelie 26022013)
+%% Plots evolution of the cost functional (Aurelie 26022013)
 figure(40);
 % plot(EvolIllu);
 semilogy(EvolIllu);
@@ -355,7 +375,7 @@ if save_res
     fprintf(fid, '\nDeconvolution:\n\r');
     fprintf(fid, '\n%d iterations on object and then illumination\r\n', NumIter);
 %     fprintf(fid, 'Border sizes %f and is keepextendedstack %d\r\n', DeconvBorders, extStack);
-    fprintf(fid, '\nNorm (method - function to optimize) is %s\r\n', Norm);
+    fprintf(fid, '\nNorm (method - function to optimize) is %s\r\n', NormMethod);
     fprintf(fid, '\nand search method is %s\r\n', SearchMethod);
     fprintf(fid, '\nwith a penalty of type %s and of Lambda %f\r\n', Pen, Lambda);
     fprintf(fid, '\nNegative penalty %s\r\n', Neg);

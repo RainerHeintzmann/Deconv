@@ -22,7 +22,11 @@ WrittenData=0;
 currentSumIdx=1;
 for v= 1:size(grad,4)+numel(myillu_sumcond)  % This loop does the packing
     if v ~= myillu_sumcond{currentSumIdx};
-        subgrad=squeeze(grad(:,:,:,v-currentSumIdx));
+        if ndims(grad) < 4 %Aurelie 10.03.2014. 2D blind-SIM with mask
+            subgrad=squeeze(grad(:,:,v-currentSumIdx));
+        else
+            subgrad=squeeze(grad(:,:,:,v-currentSumIdx));
+        end
         csize=size(myillu_mask{v});  % Should be size of the rft'ed mask
         %if isa(myillu_mask{v},'cuda')
         csize(2) = (csize(2)-1)*2;  % Calculate back what the corresponding real data size would be
@@ -37,20 +41,7 @@ for v= 1:size(grad,4)+numel(myillu_sumcond)  % This loop does the packing
             subgrad=extract(subgrad,csize); % ignore the border region
         end
         transformed=rft(subgrad);  
-        if (1)
-            if ndims(transformed)<3
-                transformed(:,1:end-1)=transformed(:,1:end-1)*2; % Aurelie & Rainer to make th egradient correct
-            else
-                transformed(:,1:end-1,:)=transformed(:,1:end-1,:)*2; % Rainer
-                if ndims(myillu_mask{v}) <3 || size(myillu_mask{v},3) == 1
-                    if ndims(myillu_mask{v}) <3
-                        transformed=squeeze(transformed(:,:,0));
-                    else
-                        transformed=transformed(:,:,0);
-                    end
-                end
-            end
-        end
+        transformed=FixGradRFT(transformed,myillu_mask{v});  % Necessary to make the gradient correct for RFTs            
         toWrite=double(transformed(myillu_mask{v}));  % selects only the pixels inside the mask. Remark from Aurelie: transformed and myillu_mask have to be of the same type (both cuda or both not)
         WriteSize=numel(toWrite);
         out(1+WrittenData:WrittenData+WriteSize)=toWrite;

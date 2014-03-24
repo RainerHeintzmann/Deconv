@@ -10,6 +10,66 @@ function [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,N
 global RegularisationParameters;  % This is a matrix with all possible regularisation lambdas (and other parameters)
 global ToEstimate;
 
+if NumIter <= 0
+    [err,grad]=GenericErrorAndDeriv(startVec);
+    eps = abs(NumIter);
+    fprintf('Testing Gradient direction total: %g with eps = %g\n',size(startVec,1),eps);
+    MaxDimensions=size(startVec,1);
+    if RegularisationParameters(19,1) > 0
+        MaxDimensions=RegularisationParameters(19,1);
+        fprintf('Only %d out of %d dimensions are tested\n',MaxDimensions, size(startVec,1));
+    end
+    mygrad=grad*0;
+    for d=1:MaxDimensions
+        fprintf('%d ',d);
+        UnitD = startVec*0;
+        UnitD(d) = 1;
+        mygrad(d) = (GenericErrorAndDeriv(startVec+(eps * UnitD)) - err) / eps;
+        if (1)
+            fprintf('Analytical: %g Numerical: %g\n',grad(d),mygrad(d));
+        end
+        if mod(d,40)==0
+            fprintf('\n');
+        end
+    end
+    fprintf('\n');
+    if (1)
+        fprintf('Imaginary components\n');
+        imagOffset=floor(size(startVec,1)/2);
+        if MaxDimensions < imagOffset
+            for d=imagOffset+1:imagOffset+MaxDimensions+1
+                fprintf('%d ',d);
+                UnitD = startVec*0;
+                UnitD(d) = 1;
+                mygrad(d) = (GenericErrorAndDeriv(startVec+(eps * UnitD)) - err) / eps;
+                if (1)
+                    fprintf('Analytical: %g Numerical: %g\n',grad(d),mygrad(d));
+                end
+                if mod(d,40)==0
+                    fprintf('\n');
+                end
+            end
+            fprintf('\n');
+        end
+    end
+    global ConvertInputToModel;
+    gradim=ConvertInputToModel(grad);  % writes result into the otfrep images
+    mygradim=ConvertInputToModel(mygrad);  % writes result into the otfrep images
+    
+    if iscell(gradim)
+        dipshow(111,cat(4,gradim{1},mygradim{1}))
+    else
+        dipshow(112,cat(4,gradim,mygradim))
+    end
+    relerror = (mygrad(1:MaxDimensions) - grad(1:MaxDimensions)) ./ mean(abs(grad(1:MaxDimensions)));
+    fprintf('Max Error :%g\n',max(abs(relerror)))   % Problems are caused by the hessian operator on finite arrays at the edges
+    % fprintf('Max Center Error :%g\n',max(abs(relerror(1:end-1,1:end-1))))   % Problems are caused by the hessian operator on finite arrays at the edges
+    myRes=startVec;
+    msevalue=err;
+    moreinfo=[]; myoutput=[];
+    return;
+end
+
 % if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0) ForcePos
 %     if (isempty(ToEstimate) || ToEstimate==0)
 %         startVec=sqrt(abs(startVec));
@@ -35,7 +95,7 @@ switch Update
 %     end
     case 'RL'
     myRes=startVec;
-    eps=1e-6;
+    eps=1e-8;
     for n=1:NumIter
         %[val,mygrad]=GenericErrorAndDeriv(myRes);
         [msevalue,mygrad]=GenericErrorAndDeriv(myRes);

@@ -1,3 +1,5 @@
+%03.03.2014: Test new deconv toolbox OK. Aurelie
+
 % This function simulates a small image and test numerically whether the gradiests as estimated by GenericErrorAndDrivative correspond to what is expected from the error value return of that function
 %clear all
 %disableCuda();
@@ -8,6 +10,12 @@ NumIm=2;
 
 obj=dip_image(rand(sX,sY));
 
+if (0)
+    MyIlluReg={};  % ;'TV',[0.1,0]
+else
+    MyIlluReg={'ForcePos',[]};  % Why does this not work?
+end
+
 %%estimate=mean(img)+img*0;  % Careful: This yields rubbish with estimating Regularisations
 %%estimate=obj*1.1;
 %%estimate=newim(9,9);estimate(4,4)=0.5;
@@ -17,6 +25,8 @@ obj=dip_image(rand(sX,sY));
 objestimate=dip_image(rand(sX,sY));  % current (old) reconstruction estimate
 illu=dip_image(rand(sX,sY,NumIm));   % an illumination distribution
 estimate=dip_image(rand(sX,sY));
+myillu_mask=[];
+
 if (0) %calculate with the mask
     global myillu_mask;
     myillu_mask=cell(1,NumIm);
@@ -31,6 +41,7 @@ for i=1:NumIm
 %     myillu_mask{i}=fft2rft(mymask);
 end
 end
+
 
 %%   To not rerun the random generators
 
@@ -68,7 +79,7 @@ global ComplexPSF; ComplexPSF=0; %check that this is correct. Aurelie
 global RegularisationParameters;
 ToReg=1;  % 0 is object, 1 means illu, 2 means otf
 % RegularisationParameters=ParseRegularisation({{'ProjPupil',[488,1.4,1.518],[100 100 100]}},ToReg); % will set RegularisationParameters(14,1)=1 % case 'ProjPupil' where only the 2D pupil is estimated
-RegularisationParameters=ParseRegularisation({},ToReg);
+RegularisationParameters=ParseRegularisation(MyIlluReg,ToReg);
 global ToEstimate;ToEstimate=0;   % 0 is object (with or without known illu), 1 is illu, 2 is OTF
 AssignFunctions(RegularisationParameters,0)  % here: 0 is object, 1 is object with known illu, 2 is illum, 3 is OTF
 %myVec=double(reshape(estimate,prod(size(estimate)))); % object estimate

@@ -2,6 +2,14 @@
 function [RegMat1,RegMat2,RegMat3]=ParseRegularisation(mycells,toReg)
 global DeconvMethod
 global aResampling;
+global myillu;   % here the conversion to cuda could be performed. "useCudaGlobal". Aurelie can you do this?
+global myotfs;
+global aRecon;
+global myillu_mask;
+global myillu_sumcond;
+global PupilInterpolators;
+global myim;
+
 %global ComplexObj;
 %ComplexObj=0;
 %global IntensityData;
@@ -11,11 +19,10 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=14;
+NumMaxPar=19;
 RegMat1 = zeros(NumMaxPar,3);
 RegMat2 = zeros(NumMaxPar,3);
 RegMat3 = zeros(NumMaxPar,3);
-RegMat1(NumMaxPar,1)=0;  % LeastSqr as default
 
 switch DeconvMethod
     case 'LeastSqr'
@@ -96,13 +103,10 @@ for n=1:size(mycells,1)
             end
             RegMat1(6,1)=1;  % Reuse what is written into aRecon below
             if toReg==0
-                global aRecon;
                 aRecon=mycells{n,2};
             elseif toReg==1
-                global myillu;
                 myillu=mycells{n,2};
             elseif toReg==2
-                global myotfs;
                 myotfs=mycells{n,2};
             end
         case 'Illumination'
@@ -110,17 +114,13 @@ for n=1:size(mycells,1)
             if ~iscell(mycells{n,2})  && (~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda')))
                 error('When submitting a illumination image for object or illumination, it has to be a dip_image or cuda type');
             end
-            global myillu;   % here the conversion to cuda could be performed. "useCudaGlobal". Aurelie can you do this?
-            global useCudaGlobal;
             myillu=mycells{n,2};
         case 'IlluMask'
             if ~iscell(mycells{n,2}) && (~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda')))
                 error('When submitting a illumination mask image for object or illumination, it has to be a dip_image or cuda type');
             end
-            global myillu_mask;
             myillu_mask=mycells{n,2};
         case 'IlluSums'
-            global myillu_sumcond;
             myillu_sumcond=mycells{n,2};
         case 'Complex'
             RegMat1(7,1)=1;  
@@ -146,9 +146,7 @@ for n=1:size(mycells,1)
             NA=mycells{n,2}(2);  % NA
             RI=mycells{n,2}(3);  % refractive index
             pixelsize=mycells{n,3};
-            global PupilInterpolators;
             if isempty(PupilInterpolators) || PupilInterpolators.lambda ~= lambda || PupilInterpolators.NA ~= NA || norm(PupilInterpolators.pixelsize - pixelsize) ~= 0
-                global myim;
                 fprintf('Warning: global structure PupilInterpolators does not exist or PSF parameters changed. Recomputing imatrix and pupil factors\n');
                 kernelSize=4;
                 sz=size(myim{1},3);
@@ -163,8 +161,19 @@ for n=1:size(mycells,1)
                 PupilInterpolators.factorList=factorList;
                 PupilInterpolators.Mask=aMask;
             end
+        case 'ForcePhase'
+            RegMat1(15,1)=1;  
+            %ForcePos=1;
+        case 'NormMeasSum'
+            RegMat1(16,1)=1;
+        case 'NormMeasSumSqr'
+            RegMat1(17,1)=1;
+        case 'NormFac'  
+            RegMat1(18,1)=mycells{n,2}(1);
+        case 'MaxTestDim'  
+            RegMat1(19,1)=mycells{n,2}(1);
         otherwise
-            error('For regularisation only TV, AR, GR, CO, Complex, IntensityData, ForcePos, NegSqr, Reuse, Resample, Bg, ProjPupil and StartImg are allowed');
+            error('For regularisation only TV, AR, GR, CO, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil and StartImg are allowed');
     end
 end
 

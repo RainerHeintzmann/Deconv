@@ -19,7 +19,11 @@ currentSumCondIdx=1;
 PSize=DataSize;PSize(2)=DataSize(1);PSize(1)=DataSize(2);  % To avoid the transpose
 TotalReadData=0;
 if ndims(myillu_mask{1})< 3 || size(myillu_mask,3)== 1
-     usethismask=newim([size(myillu_mask{1},1) size(myillu_mask{1},2) size(aRecon,3)],'bin');
+    if isa(myillu_mask{1},'cuda')
+        usethismask=newim([size(myillu_mask{1},1) size(myillu_mask{1},2) size(aRecon,3)]); %Aurelie 03.03.2014: cuda's newim does not support bin?
+    else
+        usethismask=newim([size(myillu_mask{1},1) size(myillu_mask{1},2) size(aRecon,3)],'bin');
+    end 
 end
 for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
     if v ~= myillu_sumcond{currentSumCondIdx}
@@ -32,7 +36,8 @@ for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
         else
             usethismask=myillu_mask{v};
         end
-        myillu{v}=AmpMaskToIllu(usethismask,myinput(1+TotalReadData:TotalReadData+DataToRead),v);  % remove the "v" if the filled mask does not need to be stored
+        mi=myinput(1+TotalReadData:TotalReadData+DataToRead)+0;
+        myillu{v}=AmpMaskToIllu(usethismask,mi,v)+0;  % remove the "v" if the filled mask does not need to be stored
         TotalReadData=TotalReadData+DataToRead;
         if ~equalsizes(DataSize,size(myillu{v}))
             if size(myillu{v},3)==1
