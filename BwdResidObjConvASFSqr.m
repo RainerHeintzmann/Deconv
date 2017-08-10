@@ -1,4 +1,4 @@
-function myGrad=BwdResidObjConfASFSqr(residuum,aRecon,ftRecon,myIllum,myOtf,norm3D)
+function myGrad=BwdResidObjConvASFSqr(residuum,aRecon,ftRecon,myIllum,myOtf,norm3D)
 %global ComplexObj;
 global ReconsSaved;  % Was set in the forward model
 

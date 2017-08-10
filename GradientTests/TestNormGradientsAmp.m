@@ -7,7 +7,7 @@ sX=10;
 sY=10;
 NumIm=2;
 useCuda=0;
-MyObjReg={'NormMeasSumSqr',[]};  % ;'TV',[0.1,0]
+MyObjReg={'ER', [1 1]};  % ;'TV',[0.1,0]; 'ER',[1 0.1]; 'NormMeasSumSqr',[]
 
 rng(1); % initialize the random generator with the same seed always
 r1=rand(sX,sY);
@@ -76,7 +76,9 @@ measSums{v}=sum(myim{v},DeconvMask);
 measSumsSqr{v}=sqrt(sum(real(myim{v} .* conj(myim{v})),DeconvMask));
 % myVec = [real(myVec), imag(myVec)];
 %%
+tic
 [err,grad]=GenericErrorAndDeriv(myVec);
+toc
 %%   Do all the cuda conversions here to test the cuda variant of the algorithm
 
 if (useCuda)

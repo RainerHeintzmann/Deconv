@@ -3,6 +3,6 @@
 % myReg : Penalty value
 % myRegGrad : Gradient
 
-function [myReg,myRegGrad]=RegularizeTV(toRegularize)
+function [myReg,myRegGrad]=RegularizeNegSqr(toRegularize)
 myReg = sum(abssqr(toRegularize).*(toRegularize<0));  % Just affects the real part
 myRegGrad = 2*toRegularize .* (toRegularize<0);

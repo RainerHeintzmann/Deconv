@@ -1,5 +1,5 @@
 function [myError,residuum,Recons]=ResidLeastSqr(Recons,myImg,DMask)
-residuum =( Recons-myImg);
+residuum =(Recons-myImg);
 if ~isempty(DMask)
     residuum(~DMask)=0;
 end

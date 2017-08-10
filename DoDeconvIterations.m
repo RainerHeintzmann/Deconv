@@ -3,12 +3,16 @@
 %       'RL' : Ritchardson Lucy
 %       'RLL' : Ritchardson Lucy, with a line search along each gradient direction
 %       'RLF' : Ritchardson Lucy, with overrelation parameters chosen from a fixed table
+%       'RLR' : Ritchardson Lucy, with overrelation from the Biggs paper.
 %       others : all other choices are handed over to the minfuc routine (e.g. use 'lbfgs')
 
 function [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter)
 % global ForcePos;
 global RegularisationParameters;  % This is a matrix with all possible regularisation lambdas (and other parameters)
 global ToEstimate;
+global allObj;
+global ConvertInputToModel;
+global NormFac; % To correct for the NormFactor effect on the gradient in RL
 
 if NumIter <= 0
     [err,grad]=GenericErrorAndDeriv(startVec);
@@ -100,14 +104,19 @@ switch Update
         %[val,mygrad]=GenericErrorAndDeriv(myRes);
         [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
         % reshape(dip_image(mygrad,'single'),[size(myim,1) size(myim,2) size(myim,3)])
-        myRes=myRes .* (1-mygrad);
-        myRes(myRes<eps)=eps;
+        myRes=myRes .* (1-mygrad/NormFac);
+        if (RegularisationParameters(9,1)==0) % ForcePos is not selected
+            myRes(myRes<eps)=eps;
+        end
         if msevalue ~= 0
             fprintf('Iteration %d, Richardson-Lucy iteration: Val %g\n',n,msevalue);
         else
             fprintf('Iteration %d, Richardson-Lucy iteration\n',n);
         end
         myoutput.trace.fval(n)=msevalue;
+        if iscell(allObj)
+            allObj{n}=ConvertInputToModel(myRes);
+        end
     end
     case 'RLF'  % fixed lines search steps in RL
         startSteps=[1 1];
@@ -122,14 +131,72 @@ switch Update
         for n=1:NumIter
             [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
             alpha=fullAlphaVec(n);
-            myRes=myRes .* (1-alpha*mygrad);
-            myRes(myRes<eps)=eps;
+            myRes=myRes .* (1-alpha*mygrad/NormFac);
+            if (RegularisationParameters(9,1)==0) % ForcePos is not selected
+                myRes(myRes<eps)=eps;
+            end
             if msevalue ~= 0
                 fprintf('Iteration %d, accelerated Richardson-Lucy iteration: Val %g, alpha %g\n',n,msevalue, alpha);
             else
                 fprintf('Iteration %d, accelerated Richardson-Lucy iteration\n',n);
             end
             myoutput.trace.fval(n)=msevalue;
+            if iscell(allObj)
+                allObj{n}=ConvertInputToModel(myRes);
+            end
+        end
+    case 'RLR'  % RL with overrelaxation chosen as described in Bigg's paper
+        Use2ndOrder=0;  % does not seem to help for longer iteration times
+
+        alpha=0.0;
+        h=0.0;
+        mygrad=0;oldgrad=0;
+        myRes=startVec;
+        eps=1e-9;
+        for n=1:NumIter
+            oldRes=myRes;
+            if (n>2)
+                alpha=(mygrad.' * oldgrad)./(oldgrad.' * oldgrad);
+            else
+                alpha=1.0;
+            end
+            if (n>3 && Use2ndOrder)
+                alpha=sqrt((mygrad.' * mygrad)./(oldgrad.' * oldgrad));
+            end
+            alpha=max(min(alpha,1),eps);  % limit to between eps and 1
+            if (n>3 && Use2ndOrder)
+                myY=myRes+alpha*h + (alpha^2/2)*h2;
+            else
+                myY=myRes+alpha*h;
+            end
+            oldgrad= mygrad;
+            clear mygrad;
+            [msevalue,mygrad]=GenericErrorAndDeriv(myY);
+            mygrad= - mygrad.*myRes./NormFac;
+            myRes = myY + mygrad;
+            clear myY;
+            if (RegularisationParameters(9,1)==0) % ForcePos is not selected
+                myRes(myRes<eps)=eps;
+            end
+            h=myRes-oldRes;
+            if (n>2 && Use2ndOrder)
+                h2=myRes-2*oldRes+veryOldRes;
+            end
+            
+            if (Use2ndOrder)
+                veryOldRes=oldRes;
+            else
+                clear oldRes;
+            end
+            if msevalue ~= 0
+                fprintf('Iteration %d, accelerated Richardson-Lucy iteration: Val %g, alpha %g\n',n,msevalue, alpha);
+            else
+                fprintf('Iteration %d, accelerated Richardson-Lucy iteration\n',n);
+            end
+            myoutput.trace.fval(n)=msevalue;
+            if iscell(allObj)
+                allObj{n}=ConvertInputToModel(myRes);
+            end
         end
     case 'RLL'
     myRes=startVec;
@@ -152,15 +219,26 @@ switch Update
     t=1; % 0.005;  % initial step size
     eps=1e-5;
     n=1;
+    n2=1;
     minstep=1e-7;
+    %mygrad=mygrad/NormFac; % To correct for the effect of NormFac on the gradient
+    
     while n<=NumIter
         d= -myRes.*mygrad;  % Direction in which the RL algorithm would decent
         gtd = mygrad'*d;    % Directional derivative
         [t,msevalue,mygrad,LSfunEvals] = WolfeLineSearch(myRes,t,d,msevalue,mygrad,gtd,c1,c2,LS_interp,LS_multi,25,progTol,debug,doPlot,1,@GenericErrorAndDeriv);
+        %mygrad=mygrad/NormFac; % To correct for the effect of NormFac on the gradient
         myRes=myRes+t*d;  % Perform the update
-        myRes(myRes<eps)=eps;
+        if (RegularisationParameters(9,1)==0) % ForcePos is not selected
+            myRes(dip_image(myRes<eps))=eps;  % the cast is needed for the binary adressing to work in cuda. FIX THIS
+        end
+        if iscell(allObj)
+            allObj{n2}=ConvertInputToModel(myRes);
+        end
         n=n+LSfunEvals;  % Count the line search steps towards total number of iterations
         fprintf('Iteration %d, Linesearch-Richardson-Lucy iteration: Val %g, norm(grad) %g, step length %g\n',n,msevalue,norm(mygrad),t);
+        n2=n2+1;
+        myoutput.trace.fval(n2)=msevalue;
         if norm(t) < minstep
             fprintf('Steplength below lower limit %g. Stopping to iterate.\n',minstep);
             break;
@@ -168,7 +246,6 @@ switch Update
         if t< 1
             t=1;
         end
-        myoutput.trace.fval(n)=msevalue;
     end
     clear d;
     clear mygrad;

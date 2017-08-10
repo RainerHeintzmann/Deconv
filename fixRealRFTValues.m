@@ -1,5 +1,6 @@
 % correctedRFT=fixRealRFTValues(anRFT) : Forces the RFT Values at symmetric positions to be real. This is needed to get correct rft results
 function outRFT=fixRealRFTValues(anRFT)
+anRFT=anRFT+0;
 if ndims(anRFT) == 1
     anRFT(0)=real(anRFT(0));
     mx=floor(size(anRFT,1)/2);
@@ -45,4 +46,4 @@ elseif ndims(anRFT) == 3
 else
     error('Unsupported RFT size');
 end
-outRFT=anRFT+0;  % Unfortunately Cuda needs this. Grrr....
+outRFT=anRFT; 

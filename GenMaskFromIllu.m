@@ -12,12 +12,17 @@ if nargin<2
 end
 global myillu_mask;   % confines the variable only to a subspace of illu
 myillu_mask=[]; 
-myillu_mask=cell(1,numel(myIllu));
+% myillu_mask=cell(1,numel(myIllu));
+myillu_mask=cell(size(myIllu,1),size(myIllu,2)); % Mask should also be 2*9 Aurelie 27.05.2014
 if iscell(myIllu)
-    for v=1:numel(myIllu)
-        tomask=abs(ft(myIllu{v}));
-        tomask=tomask/max(tomask); % to make it relative
-        myillu_mask{v}=fft2rft(ifftshift(dilation(tomask > MaskThresh,AbberrationTolerance))); % Rainer's version 21.03.14
+%     for v=1:numel(myIllu)
+    for si= 1:size(myIllu,1)  % Aurelie 27.05.2014
+        for v=1:size(myIllu,2) % Aurelie 27.05.2014
+            tomask=abs(ft(myIllu{si,v})); % Aurelie 27.05.2014
+%             tomask=abs(ft(myIllu{v}));
+            tomask=tomask/max(tomask); % to make it relative
+            myillu_mask{si,v}=fft2rft(ifftshift(dilation(tomask > MaskThresh,AbberrationTolerance))); % Rainer's version 21.03.14
+        end
     end
 else
     tomask=abs(ft(myIllu));

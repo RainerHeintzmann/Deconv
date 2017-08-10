@@ -1,10 +1,11 @@
 NumPhotons=10;
-NumPhotons=10000;
+% NumPhotons=10000;
 Offset=0;  % 10
 
-if (0)
+if (1)
     a=readim('chromo3d');
-    h=readim('psf.ics');
+    h=kSimPSF({'sX',size(a,1);'sY',size(a,2);'sZ',size(a,3);'scaleX',40;'scaleY',40;'scaleZ',100;'confocal',1});
+    % h=readim('psf.ics');
     % h=h/sum(h);
 else
     a=readim('chromo3d');
@@ -24,40 +25,52 @@ obj=a;
 
 
 fobj = ft(obj);
-otfs=cell(2,1);
-img=cell(2,1);
+otfs={}; % cell(2,1);
+img={}; % cell(2,1);
 for p=1:numel(h)
     otfs{p} = ft(h{p});
     mcconv=sqrt(prod(size(obj))) * real(ift(fobj .* otfs{p}));
     img{p}=noise(Offset+NumPhotons*mcconv/max(mcconv),'poisson');  % put some noise on the image
 end
 %mcconv=norm3d*real(ift(ft(a) .* ft(h)));
+%%  Do a couple of gradient checks:
+% the line below will do a number of gradient calculations
+useCuda=0;
+qqq=GenericDeconvolution(img,h,-15,'LeastSqr','RL',{'MaxTestDim',10},[1,1,1],[0 0 0],[],useCuda);
+
+qqq=GenericDeconvolution(img,h,-15,'GaussianWithReadnoise','RL',{'MaxTestDim',10},[1,1,1],[0 0 0],[],useCuda);
 
 %%
 if (1) % For the 3D sample
-    useCuda=0;
+    useCuda=1;
     myDeconv=GenericDeconvolution(img,h,15,'LeastSqr',[],{},[1 1 1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconv)
     myDeconvC=GenericDeconvolution(img,h,15,'LeastSqr',[],{'NegSqr',0.1},[1,1,1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconvC)
     myDeconvC2=GenericDeconvolution(img,h,15,'LeastSqr',[],{'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconvC2)
-    st=cat(1,img{1},myDeconv,myDeconvC,myDeconvC2)
+    myDeconvC3=GenericDeconvolution(img,h,15,'GaussianWithReadnoise',[],{'ForcePos',[];'ReadVariance',2.0},[1,1,1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconvC3)
+    st=cat(1,img{1},myDeconv,myDeconvC,myDeconvC2,myDeconvC3)
     
     myDeconvGP=GenericDeconvolution(img,h,85,'Poisson',[],{'GR',0.01;'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); gtp=cat(1,img{1},myDeconvGP)
     myDeconvG=GenericDeconvolution(img,h,85,'LeastSqr',[],{'GR',0.02;'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); gt=cat(1,img{1},myDeconvG)
     myDeconvTVP=GenericDeconvolution(img,h,85,'Poisson',[],{'TV',[0.001 0.01];'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); tvp=cat(1,img{1},myDeconvTVP)
-    myDeconvTV=GenericDeconvolution(img,h,85,'LeastSqr',[],{'TV',[0.001 0];'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); tv=cat(1,img{1},myDeconvTV)
+    % Line below crashes.
+    % myDeconvTV=GenericDeconvolution(img,h,85,'LeastSqr',[],{'TV',[0.001 0];'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); tv=cat(1,img{1},myDeconvTV)
     
-    myDeconvArP=GenericDeconvolution(img,h,85,'Poisson',[],{'AR',0.02;'ForcePos',[]},[1,1,1],[0 0 0],[],0); arp=cat(1,img{1},myDeconvArP)
-    myDeconvAr=GenericDeconvolution(img,h,85,'LeastSqr',[],{'AR',0.05;'ForcePos',[]},[1,1,1],[0 0 0],[],0); ar=cat(1,img{1},myDeconvAr)
+    myDeconvArP=GenericDeconvolution(img,h,85,'Poisson',[],{'ER',[0.1 0.001];'ForcePos',[]},[1,1,1],[0 0 0],[],0); arp=cat(1,img{1},myDeconvArP)
+    myDeconvAr=GenericDeconvolution(img,h,85,'LeastSqr',[],{'ER',[0.1 0.001];'ForcePos',[]},[1,1,1],[0 0 0],[],0); ar=cat(1,img{1},myDeconvAr)
     
     % other update schemes (Ritchardson Lucy)
     myDeconvK=GenericDeconvolution(img,h,15,'Poisson','K',{'NegSqr',0.1},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},myDeconvK)
-    myDeconvRL=GenericDeconvolution(img,h,15,'Poisson','RL',{'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},myDeconvRL)
-    myDeconvRLL=GenericDeconvolution(img,h,150,'Poisson','RLL',{'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},dip_image_force(myDeconvRLL))
+    % line below crashes
+    % myDeconvRL=GenericDeconvolution(img,h,15,'Poisson','RL',{'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},myDeconvRL)
+    myDeconvRLL=GenericDeconvolution(img,h,150,'Poisson','RLL',{'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},myDeconvRLL)
+    myDeconvRLR=GenericDeconvolution(img,h,150,'Poisson','RLR',{},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},myDeconvK)
+    myDeconvRL=GenericDeconvolution(img,h,150,'Poisson','RL',{},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},myDeconvK)
     myDeconvP=GenericDeconvolution(img,h,15,'Poisson',[],{'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); stp=cat(1,img{1},myDeconvP)
     
-    cat(4,myDeconvK,myDeconvRLL,myDeconvP,myDeconvTV,myDeconvG)
+    cat(4,myDeconvK,myDeconvRLL,myDeconvP,myDeconvTVP,myDeconvG)
     
-    mySingleAr=GenericDeconvolution(img(:,:,:,0),h(:,:,:,0),15,'LeastSqr',0.2,'AR','NegSqr',[1,1,1],0,[],0); ars=cat(1,img(:,:,:,0),myDeconvAr,mySingleAr)
+    mySingleAr=GenericDeconvolution(img{1},h{1},15,'LeastSqr',[],{'ER',[0.1 0.001],'NegSqr',0.1},[1,1,1],[0 0 0],[],useCuda); 
+    ars=cat(1,img{1},myDeconvAr,mySingleAr)
     
     %%
     tiffwrite('Results\Chromo_img.tif',img,'no')

@@ -1,6 +1,7 @@
 % [RegMat1,RegMat2]=ParseRegularisation(mycells) : Parses the parameter strings into one or two matrices
 function [RegMat1,RegMat2,RegMat3]=ParseRegularisation(mycells,toReg)
-global DeconvMethod
+global DeconvMethod;
+global DeconvMask;
 global aResampling;
 global myillu;   % here the conversion to cuda could be performed. "useCudaGlobal". Aurelie can you do this?
 global myotfs;
@@ -9,6 +10,8 @@ global myillu_mask;
 global myillu_sumcond;
 global PupilInterpolators;
 global myim;
+global realSpaceMultiplier;
+global ReadVariance;
 
 %global ComplexObj;
 %ComplexObj=0;
@@ -19,10 +22,10 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=19;
-RegMat1 = zeros(NumMaxPar,3);
-RegMat2 = zeros(NumMaxPar,3);
-RegMat3 = zeros(NumMaxPar,3);
+NumMaxPar=21;
+RegMat1 = zeros(NumMaxPar,3); % Object updates
+RegMat2 = zeros(NumMaxPar,3); % Illumination updates
+RegMat3 = zeros(NumMaxPar,3); % PSF updates
 
 switch DeconvMethod
     case 'LeastSqr'
@@ -37,6 +40,10 @@ switch DeconvMethod
         RegMat1(10,1)=2;
         RegMat2(10,1)=2;
         RegMat3(10,1)=2;
+    case 'GaussianWithReadnoise'
+        RegMat1(10,1)=3;
+        RegMat2(10,1)=3;
+        RegMat3(10,1)=3;
     otherwise
         fprintf('Unknown Update method: %s\n',DeconvMethod);
         error('For update method only LeastSqr, Poisson and WeigthedLeastSqr are allowed.');
@@ -52,12 +59,12 @@ if iscell(mycells{1})  % This means the user wants to parse two or three such ar
     if numel(mycells) > 3
         error('Use one, two or three cells for regularisation parameters');
     end
-    RegMat1=ParseRegularisation(mycells{1});
+    RegMat1=ParseRegularisation(mycells{1},0);
     if numel(mycells)>1 && ~isempty(mycells{2})
-        RegMat2=ParseRegularisation(mycells{2});
+        RegMat2=ParseRegularisation(mycells{2},1);
     end
     if numel(mycells)>2 && ~isempty(mycells{3})
-        RegMat3=ParseRegularisation(mycells{3});
+        RegMat3=ParseRegularisation(mycells{3},2);
     end
     return
 end
@@ -66,9 +73,9 @@ for n=1:size(mycells,1)
     switch (mycells{n,1})  % This should be the token
         case 'GS'  % Args are : Lambda
             RegMat1(1,1)=mycells{n,2};
-        case 'AR'  % Args are : Lambda
+        case 'ER'  % Args are : Lambda.  Used to be called 'AR'
             if numel(mycells{n,2}) ~= 2
-                error('Using AR regularisation, please provide two values in the form [lambda eps]. An eps of one is a choice. Eps > 0');
+                error('Using ER regularisation, please provide two values in the form [lambda eps]. An eps of one is a choice. Eps > 0');
             end
             RegMat1(2,1)=mycells{n,2}(1);
             RegMat1(2,2)=mycells{n,2}(2);
@@ -82,7 +89,7 @@ for n=1:size(mycells,1)
             RegMat1(4,1)=mycells{n,2};
         case 'GR'  % Args are : Lambda
             RegMat1(5,1)=mycells{n,2}(1);
-            RegMat1(5,2)=1e-4;
+            RegMat1(5,2)=0.1;
             if numel(mycells{n,2}) > 1
                 RegMat1(5,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
@@ -120,14 +127,21 @@ for n=1:size(mycells,1)
                 error('When submitting a illumination mask image for object or illumination, it has to be a dip_image or cuda type');
             end
             myillu_mask=mycells{n,2};
+        case 'DeconvMask'
+            if ~iscell(mycells{n,2}) && (~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda')))
+                error('When submitting a DeconvMask mask image for residuum, it has to be a dip_image or cuda type');
+            end
+            DeconvMask=mycells{n,2};
         case 'IlluSums'
             myillu_sumcond=mycells{n,2};
         case 'Complex'
             RegMat1(7,1)=1;  
             %ComplexObj=1;
         case 'IntensityData'
-            RegMat1(8,1)=1;  
+            RegMat1(8,1)=1;              
             %IntensityData=1;
+        case 'FTData'  % Data lives in Fourier-space
+            RegMat1(21,1)=1;  
         case 'ForcePos'
             RegMat1(9,1)=1;  
             %ForcePos=1;
@@ -135,31 +149,20 @@ for n=1:size(mycells,1)
             aResampling=mycells{n,2};
         case 'Bg'  % include an offset intensity into the model
             RegMat1(12,1)=mycells{n,2};
-        case 'Show'  % include an offset intensity into the model
+        case 'Show' 
             RegMat1(13,1)=1;
         case 'ProjPupil'   % This means the only the projected pupil is iterated rather that the full 3d amplitude. 
             RegMat1(14,1)=1;
             if (size(mycells,2) < 3) || (numel(mycells{n,2}) ~= 3) || (numel(mycells{n,3}) ~= 3)
                 error('Error using the argument ''ProjPupil''. You need to state wavelength and NA as follows: {''ProjPupil'', [lambda, NA, n],[pixelsizeX pixelsizeY pixelsizeZ]}');
             end
-            lambda=mycells{n,2}(1);  % Wavelength
-            NA=mycells{n,2}(2);  % NA
-            RI=mycells{n,2}(3);  % refractive index
-            pixelsize=mycells{n,3};
-            if isempty(PupilInterpolators) || PupilInterpolators.lambda ~= lambda || PupilInterpolators.NA ~= NA || norm(PupilInterpolators.pixelsize - pixelsize) ~= 0
-                fprintf('Warning: global structure PupilInterpolators does not exist or PSF parameters changed. Recomputing imatrix and pupil factors\n');
-                kernelSize=4;
-                sz=size(myim{1},3);
-                Bsize=ceil(sz)*0.1;
-                imatrix=IterateCoefficients(40,kernelSize,sz,Bsize,500);  % 40 subpixel subdivisions, 2*10+1 kernelsize, 20 pixel bordersize in all directions, 500 iterations
-                [indexList2D,fullIndex3D,factorList,aMask]=FillProjSpherePrepare(size(myim{1}),lambda,pixelsize,NA,imatrix,RI);
-                PupilInterpolators.lambda=lambda;
-                PupilInterpolators.pixelsize=pixelsize;
-                PupilInterpolators.NA=NA;
-                PupilInterpolators.indexList2D=indexList2D;
-                PupilInterpolators.fullIndex3D=fullIndex3D;
-                PupilInterpolators.factorList=factorList;
-                PupilInterpolators.Mask=aMask;
+            PupilInterpolators.Newlambda=mycells{n,2}(1);  % Wavelength
+            PupilInterpolators.NewNA=mycells{n,2}(2);  % NA
+            PupilInterpolators.NewRI=mycells{n,2}(3);  % refractive index
+            PupilInterpolators.Newpixelsize=mycells{n,3};
+            PupilInterpolators.FullVectorial=0;  % Scalar approach
+            if mycells{n,2}(1)== 2  % use full vectorial theory
+                PupilInterpolators.FullVectorial=1;
             end
         case 'ForcePhase'
             RegMat1(15,1)=1;  
@@ -170,10 +173,20 @@ for n=1:size(mycells,1)
             RegMat1(17,1)=1;
         case 'NormFac'  
             RegMat1(18,1)=mycells{n,2}(1);
-        case 'MaxTestDim'  
+        case 'MaxTestDim'  % Number of dimensions to test for gradient tests
             RegMat1(19,1)=mycells{n,2}(1);
+        case 'RealSpaceMask'  % used for light sheet microscopy in the PSF regularisation field. If only a number is supplied, this is interpreted as the width of the Gaussian
+            if prod(size(mycells{n,2}(1))) == 1
+                RegMat1(20,1)=toReg+1;  % just serves as an index
+                realSpaceMultiplier{toReg+1}=exp(-zz(size(myim{1})).^2./(log(0.5)*mycells{n,2}(1)).^2);
+            else
+                RegMat1(20,1)=toReg+1;
+                realSpaceMultiplier{toReg+1}=mycells{n,2}(1);    
+            end
+        case 'ReadVariance'
+            ReadVariance=mycells{n,2}(1);
         otherwise
-            error('For regularisation only TV, AR, GR, CO, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil and StartImg are allowed');
+            fprintf('Unknown Flag: %s\n',mycells{n,1});
+            error('For regularisation only TV, ER, GR, CO, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil, Illumination, IlluMask, FTData and StartImg are allowed');
     end
 end
-

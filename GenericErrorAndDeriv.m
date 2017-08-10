@@ -24,6 +24,7 @@
 
 function [err,thegrad]=GenericErrorAndDeriv(myinput)
 global myim;
+global myFTim;
 global myillu;  % only of there is an illumination pattern present, will it be used
 global otfrep;
 global BetaVals;  % These are the scaling factors between pixel coordinates. This is proportional to the pixel width, but should be normalized
@@ -46,6 +47,8 @@ global measSumsSqr;
 global measSums;
 global measSum;
 global measSumSqr;
+global useFTComparison;  % only active if Ptychography updates are used in this round
+global Recons;  % to make it accessible from the outside
 
 %delta= 100; % Weight for the negativtiy penalty
 %delta= 1000; % Weight for the negativtiy penalty
@@ -98,65 +101,101 @@ end
 
 ftRecon=[];
 numViews=length(myim);
+OTFsPerView=floor(length(myillu)/length(myim));  % e.g. one illu per image means OTFsPerView=1
+if OTFsPerView < 1
+    OTFsPerView = 1;
+end
+% if OTFsPerView ~= size(myillu,1)
+if OTFsPerView ~= size(myillu,1) && (~isempty(myillu)) %Aurelie 03.06.2014 for the WF case
+    error('illumination patterns dont agree with number of OTFs')
+end
+
 for viewNum = 1:numViews    % This iterates over all the different measured images
     myReg=0;myRegGrad=0;
 
     
     %% select the appropriate subdata regions
-    myImg=myim{viewNum};  % This does not cost any time or memory
-%     if any(aResampling~=1)
-%         svecsize = floor(svecsize .* aResampling);
-%         NewSize=svecsize; %Aurelie 21.03.2014. Will make myillu the right size, but not the psf
-%     end
-    myOtf=otfrep{1+mod(viewNum-1,length(otfrep))};  % This does not cost any time or memory. If only one otf is there it will always be used
-    if ~isempty(myillu)
-        myIllum=myillu{1+mod(viewNum-1,length(myillu))};
+    if ~useFTComparison
+        myImg=myim{viewNum};  % This does not cost any time or memory
     else
-        myIllum=1;
+        myImg=myFTim{viewNum};  % The Ptychography trick is used to avoid some FTs. Thus the data has to be compared with the Fourier transforms
     end
-    
-    if viewNum==1 && (isempty(ToEstimate) || ToEstimate==0 || ToEstimate==2) && (isempty(myillu))% Object or OTF estimate
-        if isreal(aRecon) && (norm(size(myOtf)-size(aRecon))~=0)
-            ftRecon=rft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
-            if any(aResampling~=1)
-                ftRecon=rft_resize(ftRecon,1./aResampling);  % if the user wants to use a different reconstruction grid
-            end
-            measSum=measSums{1};
-            measSumSqr=measSumsSqr{1};
+    measSum=measSums{viewNum};
+    measSumSqr=measSumsSqr{viewNum};
+
+    for subViewOTFNum =1:OTFsPerView  % iterates over sup-views in the case of 3DSIM generating as a sum only one Fwd projected image
+        
+        myOtf=otfrep{1+mod(viewNum-1+(subViewOTFNum-1),length(otfrep))};  % This does not cost any time or memory. If only one otf is there it will always be used
+        if ~isempty(myillu)
+%             myIllum=myillu{(subViewOTFNum-1),1+mod((viewNum-1),length(myillu))};
+            myIllum=myillu{subViewOTFNum,1+mod((viewNum-1),length(myillu))}; %Aurelie 26.05.2014
         else
-            ftRecon=ft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
-            measSum=measSums{viewNum};
-            measSumSqr=measSumsSqr{viewNum};
+            myIllum=1;
         end
-    end
-    %% first we need to apply the forward model
-    Recons = FwdModel(aRecon,ftRecon,myIllum,myOtf,norm3D^2/norm3DObj);  % This performs the convolution of the object (multiplied with illumination) with the psf
+        
+        if viewNum==1 && (isempty(ToEstimate) || ToEstimate==0 || ToEstimate==2) && (isempty(myillu))% Object or OTF estimate
+            if isreal(aRecon) && (norm(size(myOtf)-size(aRecon))~=0)
+                ftRecon=rft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
+                if any(aResampling~=1)
+                    ftRecon=rft_resize(ftRecon,1./aResampling);  % if the user wants to use a different reconstruction grid
+                end
+            else
+                ftRecon=ft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
+            end
+        end
+        %% first we need to apply the forward model
+        if subViewOTFNum == 1
+            % also serves as an initialization for the sum
+            Recons = FwdModel(aRecon,ftRecon,myIllum,myOtf,norm3D^2/norm3DObj);  % This performs the convolution of the object (multiplied with illumination) with the psf
+        else
+            Recons = Recons+FwdModel(aRecon,ftRecon,myIllum,myOtf,norm3D^2/norm3DObj);  % This performs the convolution of the object (multiplied with illumination) with the psf
+        end
+    end  % of iteration over sub-views (needed for 3D SIM forward model)
     % Functions to be hidden behind FwdModel() are FwdObjConvPSF() FwdObjConvASF() FwdObjIlluConfPSF() and FwdObjIlluConfASF()
     %% Now calculate the residuum depending on the deconvolution method
     [myError,residuum] = CalcResiduum(Recons,myImg,DMask); % May change Recons to force positivity. Possible Functions are ResidPoisson, ResidLeastSqr, ResidWeightedLeastSqr
-    clear Recons;
+    % clear Recons;
     err=err+myError;
     %% Apply the Transpose (Bwd Model)
-    myGrad=BwdModel(residuum,aRecon,ftRecon,myIllum,myOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
-    if viewNum==numViews
-       clear ftRecon;
-    end
-    if ToEstimate ~= 2
-        clear myOtf;
-    end
-    clear residuum;
-    % Functions to be hidden behind BwdModel() are BwdResidObjConvPSF() BwdResidObjConvASF() BwdResidObjIlluConvPSF() BwdResidObjIlluConvASF() BwdResidIlluObjConvPSF() BwdResidIlluObjConvASF()
-
+    for subViewOTFNum =1:OTFsPerView  % iterates over sup-views in the case of 3DSIM generating as a sum only one Fwd projected image
+        myOtf=otfrep{1+mod(viewNum-1+(subViewOTFNum-1),length(otfrep))};  % This does not cost any time or memory. If only one otf is there it will always be used
+        if ~isempty(myillu)
+%             myIllum=myillu{(subViewOTFNum-1),1+mod((viewNum-1),length(myillu))};
+            myIllum=myillu{subViewOTFNum,1+mod((viewNum-1),length(myillu))}; %Aurelie 26.05.2014
+        else
+            myIllum=1;
+        end
+        
+        if subViewOTFNum == 1
+            % also serves as an initialization for the sum
+            myGrad=BwdModel(residuum,aRecon,ftRecon,myIllum,myOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
+        else
+            myGrad=myGrad+BwdModel(residuum,aRecon,ftRecon,myIllum,myOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
+        end
+        
+        if viewNum==numViews
+            clear ftRecon;
+        end
+        if ToEstimate ~= 2
+            clear myOtf;
+        end
+        clear residuum;
+        % Functions to be hidden behind BwdModel() are BwdResidObjConvPSF() BwdResidObjConvASF() BwdResidObjIlluConvPSF() BwdResidObjIlluConvASF() BwdResidIlluObjConvPSF() BwdResidIlluObjConvASF()
+        
+        if isempty(ToEstimate) || ToEstimate==0  % object estimate has to be summed for all views
+            thegrad=thegrad + myGrad;
+            % myGrad=BwdExtraModel(myGrad,1);  % The background model is applied after the for loop for all instances
+            % thegrad=thegrad + myGrad;
+            % clear myGrad;
+        else
+            myGrad=BwdExtraModel(myGrad,viewNum);  % Possibly changes due to Sqr or Phase  ('ForcePos' or 'ForcePhase')
+        end
+        clear myImg;
+        
+    end % of iteration over sub-views (needed for 3D SIM forward model).. thegrad is summed in this loop
     if isempty(ToEstimate) || ToEstimate==0  % object estimate has to be summed for all views
-        thegrad=thegrad + myGrad;
-        % myGrad=BwdExtraModel(myGrad,1);  % The background model is applied after the for loop for all instances    
-        % thegrad=thegrad + myGrad;
         clear myGrad;
-    else
-        myGrad=BwdExtraModel(myGrad,viewNum);  % Possibly changes due to Sqr or Phase  ('ForcePos' or 'ForcePhase')    
     end
-    clear myImg;
-    
     % The second part of the gradient calculation (multiplication with aRecon or illu{viewNum} is done at the end of the loop    
     % The terms below are only dependend on the reconstruction but not on the data. They need to be calculated onyl once for all views.
     % Total error term (including regularisation):
@@ -181,9 +220,10 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
             if ToEstimate==2 && (agradIdx >= length(otfrep))
                 error('Number of images does not correspond to number of OTFs for blind OTF deconvolution');
             end
-            thegrad(:,:,:,agradIdx)=myGrad + myRegGrad;
+            thegrad(:,:,:,agradIdx)=myGrad + myRegGrad;  % thegrad estimates only ONE pattern even if there are multiple sub-patterns in it
         else  % The last residuum has to be subtracted from each of the other residuals, see eq. S14 and S4 in supplementary methods of DOI: 10.1038/NPHOTON.2012.83
-            thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)=thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
+            thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)=thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)-(myGrad+myRegGrad);
+            % thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)=thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
             prevSumCondGradIdx=agradIdx;
             currentSumCondIdx = currentSumCondIdx +1;
         end

@@ -4,7 +4,7 @@
 % myReg : Penalty value
 % myRegGrad : Gradient
 % The total variation code below is based on a simple 2-point finite difference
-% calculation using cicular shifting (like rsl, rsr)
+% calculation using circular shifting (like rsl, rsr)
 % The derivative with respect to the function value is calculated
 % as the exact value for the discrete version of the finite
 % differences. This way the gradient should be correct.
@@ -23,34 +23,56 @@ if nargin < 3
 end
 if (ndims(toRegularize) == 2) || (size(toRegularize,3) == 1)
     if (ndims(toRegularize) == 2)
-        aGrad{1}=(circshift(toRegularize,[1 0])-circshift(toRegularize,[-1 0]))/(2*BetaVals(1));  % cyclic rotation
-        aGrad{2}=(circshift(toRegularize,[0 1])-circshift(toRegularize,[0 -1]))/(2*BetaVals(2));  % cyclic rotation
-        mySqrt = sqrt(abssqr(aGrad{1})+abssqr(aGrad{2})+epsR);
+        aGradL{1}=(toRegularize - circshift(toRegularize,[1 0]))/BetaVals(1);  % cyclic rotation
+        aGradL{2}=(toRegularize - circshift(toRegularize,[0 1]))/BetaVals(2);  % cyclic rotation
+        aGradR{1}=(circshift(toRegularize,[-1 0]) - toRegularize)/BetaVals(1);
+        aGradR{2}=(circshift(toRegularize,[0 -1]) - toRegularize)/BetaVals(2);
+        mySqrtL = sqrt(abssqr(aGradL{1}) + abssqr(aGradL{2}) + epsR);
+        mySqrtR = sqrt(abssqr(aGradR{1}) + abssqr(aGradR{2}) + epsR);
+        mySqrt = mySqrtL + mySqrtR;
         mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-        myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,[-2 0]))./circshift(mySqrt,[-1 0]) - (circshift(toRegularize,[2 0])-toRegularize)./circshift(mySqrt,[1 0])) + ...
-            (1/(4*BetaVals(2)*BetaVals(2)))*((toRegularize-circshift(toRegularize,[0 -2]))./circshift(mySqrt,[0 -1]) - (circshift(toRegularize,[0 2])-toRegularize)./circshift(mySqrt,[0 1]));
+        % gradient is tested
+        myRegGrad = (aGradL{1}/BetaVals(1) + aGradL{2}/BetaVals(2))./mySqrtL - (aGradR{1}/BetaVals(1) + aGradR{2}/BetaVals(2))./mySqrtR - ...
+                    aGradR{1}/BetaVals(1)./circshift(mySqrtL, [-1 0]) - aGradR{2}/BetaVals(2)./circshift(mySqrtL, [0 -1]) + ...
+                    aGradL{1}/BetaVals(1)./circshift(mySqrtR, [1 0]) + aGradL{2}/BetaVals(2)./circshift(mySqrtR, [0 1]);
     else (size(toRegularize,3) == 1)
-        aGrad{1}=(circshift(toRegularize,[1 0 0])-circshift(toRegularize,[-1 0 0]))/(2*BetaVals(1));  % cyclic rotation
-        aGrad{2}=(circshift(toRegularize,[0 1 0])-circshift(toRegularize,[0 -1 0]))/(2*BetaVals(2));  % cyclic rotation
-        mySqrt = sqrt(abssqr(aGrad{1})+abssqr(aGrad{2})+epsR);
+        aGradL{1}=(toRegularize - circshift(toRegularize,[1 0 0]))/BetaVals(1);  % cyclic rotation
+        aGradL{2}=(toRegularize - circshift(toRegularize,[0 1 0]))/BetaVals(2);  % cyclic rotation
+        aGradR{1}=(circshift(toRegularize,[-1 0 0]) - toRegularize)/BetaVals(1);
+        aGradR{2}=(circshift(toRegularize,[0 -1 0]) - toRegularize)/BetaVals(2);
+        mySqrtL = sqrt(abssqr(aGradL{1})+abssqr(aGradL{2})+epsR);
+        mySqrtR = sqrt(abssqr(aGradR{1})+abssqr(aGradR{2})+epsR);
+        mySqrt =  mySqrtL + mySqrtR;
         mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-        myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,[-2 0 0]))./circshift(mySqrt,[-1 0 0]) - (circshift(toRegularize,[2 0 0])-toRegularize)./circshift(mySqrt,[1 0 0])) + ...
-            (1/(4*BetaVals(2)*BetaVals(2)))*((toRegularize-circshift(toRegularize,[0 -2 0]))./circshift(mySqrt,[0 -1 0]) - (circshift(toRegularize,[0 2 0])-toRegularize)./circshift(mySqrt,[0 1 0]));
+        myRegGrad = (aGradL{1}/BetaVals(1) + aGradL{2}/BetaVals(2))./mySqrtL - (aGradR{1}/BetaVals(1) + aGradR{2}/BetaVals(2))./mySqrtR - ...
+                    aGradR{1}/BetaVals(1)./circshift(mySqrtL, [-1 0 0]) - aGradR{2}/BetaVals(2)./circshift(mySqrtL, [0 -1 0]) + ...
+                    aGradL{1}/BetaVals(1)./circshift(mySqrtR, [1 0 0]) + aGradL{2}/BetaVals(2)./circshift(mySqrtR, [0 1 0]);
     end
 elseif ndims(toRegularize) == 3
-    aGrad{1}=(circshift(toRegularize,[1 0 0])-circshift(toRegularize,[-1 0 0]))/(2*BetaVals(1));  % cyclic rotation
-    aGrad{2}=(circshift(toRegularize,[0 1 0])-circshift(toRegularize,[0 -1 0]))/(2*BetaVals(2));  % cyclic rotation
-    aGrad{3}=(circshift(toRegularize,[0 0 1])-circshift(toRegularize,[0 0 -1]))/(2*BetaVals(3));  % cyclic rotation
-    mySqrt = sqrt(abssqr(aGrad{1})+abssqr(aGrad{2})+abssqr(aGrad{3})+epsR);
+    aGradL{1}=(toRegularize - circshift(toRegularize,[1 0 0]))/BetaVals(1);  % cyclic rotation
+    aGradL{2}=(toRegularize - circshift(toRegularize,[0 1 0]))/BetaVals(2);  % cyclic rotation
+    aGradL{3}=(toRegularize - circshift(toRegularize,[0 0 1]))/BetaVals(3);  % cyclic rotation
+    aGradR{1}=(circshift(toRegularize,[-1 0 0]) - toRegularize)/BetaVals(1);
+    aGradR{2}=(circshift(toRegularize,[0 -1 0]) - toRegularize)/BetaVals(2);
+    aGradR{3}=(circshift(toRegularize,[0 0 -1]) - toRegularize)/BetaVals(3);
+    mySqrtL = sqrt(abssqr(aGradL{1})+abssqr(aGradL{2})+abssqr(aGradL{3})+epsR); 
+    mySqrtR = sqrt(abssqr(aGradR{1})+abssqr(aGradR{2})+abssqr(aGradR{3})+epsR);
+    mySqrt = mySqrtL + mySqrtR; 
     mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-    myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,[-2 0 0]))./circshift(mySqrt,[-1 0 0]) - (circshift(toRegularize,[2 0 0])-toRegularize)./circshift(mySqrt,[1 0 0])) + ...
-        (1/(4*BetaVals(2)*BetaVals(2)))*((toRegularize-circshift(toRegularize,[0 -2 0]))./circshift(mySqrt,[0 -1 0]) - (circshift(toRegularize,[0 2 0])-toRegularize)./circshift(mySqrt,[0 1 0])) + ...
-        (1/(4*BetaVals(3)*BetaVals(3)))*((toRegularize-circshift(toRegularize,[0 0 -2]))./circshift(mySqrt,[0 0 -1]) - (circshift(toRegularize,[0 0 2])-toRegularize)./circshift(mySqrt,[0 0 1]));
+    myRegGrad = (aGradL{1}/BetaVals(1) + aGradL{2}/BetaVals(2) + aGradL{3}/BetaVals(3))./mySqrtL - ...
+                (aGradR{1}/BetaVals(1) + aGradR{2}/BetaVals(2) + aGradR{3}/BetaVals(3))./mySqrtR - ...
+                aGradR{1}/BetaVals(1)./circshift(mySqrtL, [-1 0 0]) - aGradR{2}/BetaVals(2)./circshift(mySqrtL, [0 -1 0]) - ...
+                aGradR{3}/BetaVals(3)./circshift(mySqrtL, [0 0 -1]) + aGradL{1}/BetaVals(1)./circshift(mySqrtR, [1 0 0]) + ...
+                aGradL{2}/BetaVals(2)./circshift(mySqrtR, [0 1 0]) + aGradL{3}/BetaVals(3)./circshift(mySqrtR, [0 0 1]);
 else % 1-D
-    aGrad{1}=(circshift(toRegularize,1)-circshift(toRegularize,-1))/(2*BetaVals(1));  % cyclic rotation
-    mySqrt = sqrt(abssqr(aGrad{1})+epsR);
+    aGradL=(toRegularize - circshift(toRegularize,1))/BetaVals(1);  
+    aGradR=(circshift(toRegularize,-1) - toRegularize)/BetaVals(1);  % cyclic rotation
+    mySqrtL = sqrt(abssqr(aGradL)+epsR);
+    mySqrtR = sqrt(abssqr(aGradR)+epsR);
+    mySqrt = mySqrtL + mySqrtR; 
     mySqrt(mySqrt< epsC) = epsC;  % To avoid divisions by zero
-    myRegGrad = (1/(4*BetaVals(1)*BetaVals(1)))*((toRegularize-circshift(toRegularize,-2))./circshift(mySqrt,-1) - (circshift(toRegularize,2)-toRegularize)./circshift(mySqrt,1));
+    myRegGrad = aGradL/BetaVals(1)./mySqrtL - aGradR/BetaVals(1)./mySqrtR - ...
+                aGradR/BetaVals(1)./circshift(mySqrtL, -1) + aGradL/BetaVals(1)./circshift(mySqrtR, 1);
 end
 myReg = sum(mySqrt);
 

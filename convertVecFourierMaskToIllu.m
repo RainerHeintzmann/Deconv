@@ -25,34 +25,41 @@ if ndims(myillu_mask{1})< 3 || size(myillu_mask,3)== 1
         usethismask=newim([size(myillu_mask{1},1) size(myillu_mask{1},2) size(aRecon,3)],'bin');
     end 
 end
-for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
-    if v ~= myillu_sumcond{currentSumCondIdx}
-        if v == 1
-            myinput=complex(myinput(1:end/2), myinput(end/2+1:end)); % pack two reals to one complex
-        end
-        DataToRead=sum(myillu_mask{v});
-        if ndims(aRecon)>2 && size(aRecon,3) > 1 && (ndims(myillu_mask{v})< 3 || size(myillu_mask{v},3)== 1)
-            usethismask(:,:,0)=myillu_mask{v};
-        else
-            usethismask=myillu_mask{v};
-        end
-        mi=myinput(1+TotalReadData:TotalReadData+DataToRead)+0;
-        myillu{v}=AmpMaskToIllu(usethismask,mi,v)+0;  % remove the "v" if the filled mask does not need to be stored
-        TotalReadData=TotalReadData+DataToRead;
-        if ~equalsizes(DataSize,size(myillu{v}))
-            if size(myillu{v},3)==1
-                myillu{v}=repmat(myillu{v},[1 1 DataSize(3)]);  % Just assumes that the illumination is identical in all planes. Better would be a proper 3D mask with only 2D nonzero areas.
-               % fprintf('Warning: Illumination mask was chosen 2D even though reconstructed data is 3D size. Assuming same intensity in all planes\n');
-            else
-                error('Reconstructed object size does not correspond to calculated illumination. This should not happen. Illumination-mask size is probably wrong.');
+if numel(myim) ~= size(myillu_mask,2)
+    error('number of elements in myim does not correspond to the size of myillu_mask along direction 2')
+end
+for si= 1:size(myillu_mask,1)  % sub illuminations
+    for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
+        if v ~= myillu_sumcond{currentSumCondIdx}
+            if v == 1
+                myinput=complex(myinput(1:end/2), myinput(end/2+1:end)); % pack two reals to one complex
             end
+            DataToRead=sum(myillu_mask{si,v});
+            if ndims(aRecon)>2 && size(aRecon,3) > 1 && (ndims(myillu_mask{si,v})< 3 || size(myillu_mask{si,v},3)== 1)
+                usethismask(:,:,0)=myillu_mask{si,v};
+            else
+                usethismask=myillu_mask{si,v};
+            end
+            mi=myinput(1+TotalReadData:TotalReadData+DataToRead)+0;
+            tmp=AmpMaskToIllu(usethismask,mi,v)+0;  % remove the "v" if the filled mask does not need to be stored
+            myillu{si,v}=tmp;
+            clear tmp;
+            TotalReadData=TotalReadData+DataToRead;
+            if ~equalsizes(DataSize,size(myillu{si,v}))
+                if ndims(myillu{si,v}) > 2 size(myillu{si,v},3)==1
+                    myillu{si,v}=repmat(myillu{si,v},[1 1 DataSize(3)]);  % Just assumes that the illumination is identical in all planes. Better would be a proper 3D mask with only 2D nonzero areas.
+                    % fprintf('Warning: Illumination mask was chosen 2D even though reconstructed data is 3D size. Assuming same intensity in all planes\n');
+                else
+                    error('Reconstructed object size does not correspond to calculated illumination. This should not happen. Illumination-mask size is probably wrong.');
+                end
+            end
+            asum=asum+myillu{si,v};
+            sumviews=sumviews+1;
+        else
+            myillu{si,v}=(sumviews+1)-asum;   % The sum is forced to be constrained
+            asum=0;sumviews=0;
+            currentSumCondIdx=currentSumCondIdx+1;
         end
-        asum=asum+myillu{v};
-        sumviews=sumviews+1;
-    else
-        myillu{v}=(sumviews+1)-asum;   % The sum is forced to be constrained
-        asum=0;sumviews=0;
-        currentSumCondIdx=currentSumCondIdx+1;
     end
 end
 clear asum;

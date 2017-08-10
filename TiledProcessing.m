@@ -1,4 +1,4 @@
-% resim=TiledProcessing(tilesize,data,varargin,aFunction)  : Performs a tiled processing of the data
+% resim=TiledProcessing(tilesize,bordersize,data,myarglist,aFunction,extraOffset)  : Performs a tiled processing of the data
 % The first argument is the 3D size which fits into memory. It will then
 % automatically calculate the required number of tiles and submit them
 % individually to the function.
@@ -43,8 +43,10 @@ end
 
 tilesize=tilesize-aborder; %for the overlap
 tilenum=ceil((imgsize-aborder)./(tilesize)); %number of tiles. Aurelie
+disableCuda()
 resim=newim(img,datatype(img)); %initialisation
 
+tt1=tic;
 for tz=1:tilenum(3)
     for ty=1:tilenum(2)
         for tx=1:tilenum(1)    %Perform for each tile
@@ -92,6 +94,9 @@ for tz=1:tilenum(3)
             end
             % Now, cut and paste:
             resim(xs:xe,ys:ye,zs:ze)=result(sxs:sxe,sys:sye,szs:sze); %Aurelie. Also converts the datatype automatically
+            tt=toc(tt1);
+            progress=(tx-1+(ty-1)*tilenum(1)+(tz-1)*tilenum(2)*tilenum(1)) / prod(tilenum);
+            fprintf('Progress: %g percent, Estimated time to go: %.3g minutes\n',progress*100,(tt/progress)*(1-progress)/60)
         end
     end
 end

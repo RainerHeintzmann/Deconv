@@ -7,7 +7,7 @@ sX=10;
 sY=10;
 NumIm=2;
 useCuda=0;
-MyObjReg={'NormMeasSum',[]};  % ;'TV',[0.1,0]
+MyObjReg={'ER', [1 1]};  % ;'TV',[0.1,0]; 'ForcePhase',[]; 'IntensityData',[]; 'NormMeasSum',[]
 
 rng(1); % initialize the random generator with the same seed always
 r1=rand(sX,sY);
@@ -48,7 +48,7 @@ img=abssqr(sqrt(prod(size(obj)))*(ift(ft(obj) .* atf)));
 
 global myim;myim={};myim{1}=img;% myim{2}=img;
 
-global otfrep;otfrep={};otfrep{1}=rft(abssqr(atf));
+global otfrep;otfrep={};otfrep{1}= rft(abssqr(ift(atf))); %atf;
 global lambdaPenalty;lambdaPenalty=1.0;
 global DeconvMethod;DeconvMethod='LeastSqr';
 %global DeconvMethod;DeconvMethod='Poisson';
@@ -96,7 +96,7 @@ end
 
 %%
 clear mygrad;
-eps = 1e-3;
+eps = 1e-4;
 fprintf('Testing Gradient direction total: %g\n',size(myVec,2));
 for d=1:size(myVec,2)
     fprintf('%d ',d);

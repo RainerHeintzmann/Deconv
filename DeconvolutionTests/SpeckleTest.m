@@ -4,7 +4,7 @@ if ~isempty(cuda_enabled)
 end
 %NumPhotons=0;
 Offset=0;  % 10
-sX=200;sY=200;sZ=1;
+sX=200;sY=200;sZ=7;
 lambda=500;
 scaleX=lambda/20;   % pixel sizes in nm
 scaleY=lambda/20;
@@ -66,6 +66,7 @@ obj=a;
 if(1)
 NumSpeck=80;  % Number of Speckle images
 myspeckles=GenSpeckles(size(obj),0.1,2,NumSpeck);
+myspecklesIdeal=myspeckles;
 else
  %myspeckles=GenSIM(size(a),SIMDist,3,3,1,0);  % coarse grating, phases and directions and contrast (1.0 means perfect)
 AbberationMap=- gaussf(abs(xx(size(a))) < 30,8) *pi;
@@ -121,14 +122,17 @@ end
 if (0)
     useCuda=1;enableCuda();
 else
-    useCuda=0;disableCuda();
+    useCuda=0; % disableCuda();
 end
 
-myillu=myspecklesIdeal;
+myillu=[];  % myspecklesIdeal; %Blind
+NumIter=[50 5 25 5];
 
-myDeconvCI=GenericDeconvolution(img,h,55,'LeastSqr',[],0.001,'NONE','NegSqr',[1,1,1],[0 0],[],useCuda); 
+myDeconvCI=GenericDeconvolution(img,h,NumIter,'LeastSqr','B',{{'NegSqr',0.001},{'NegSqr',0.001}},[1,1,1],[0,0],[],useCuda,0); 
+% myDeconvCI=GenericDeconvolution(img,h,55,'LeastSqr',[],0.001,'NONE','NegSqr',[1,1,1],[0 0],[],useCuda); 
 st=cat(4,myDeconvCI,obj,img{1})
 
+%%
 myillu=myspeckles;
 
 myDeconvC=GenericDeconvolution(img,h,55,'LeastSqr',[],0.001,'NONE','NegSqr',[1,1,1],[0 0],[],useCuda); 

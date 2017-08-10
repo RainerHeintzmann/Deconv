@@ -44,10 +44,10 @@ SimNum=3; %Simulation number (don't forget to update! Or data gets overwritten)
 use_obj='Spoke'; % Choose the object (possibilities are: Spoke, target, pollen, 3dObj, 2dBead, shell, 3dBead)
 use_kSimPSF=1; %If 1, uses the function kSimPSF to create the psf
 use_speckles=0; %Choose 1 if the illumination is a speckle pattern and 0 if grating pattern
-useCuda=1; %Choose 1 if the cuda toolbox is installed
-use_sumcond=1; %Choose 1  to introduce a sum condition for the blind deconvolution
+useCuda=0; %Choose 1 if the cuda toolbox is installed
+use_sumcond=0; %Choose 1  to introduce a sum condition for the blind deconvolution
 use_mask=1; %Choose 1 to introduce an illumination mask for the blind deconvolution
-do_comp=1; %Compares the blind deconvolution with other modes (if 0, performs only blind deconvolution)
+do_comp=0; %Compares the blind deconvolution with other modes (if 0, performs only blind deconvolution)
 sw_AbberationMap=1; % 3 possibilities for the aberration map: (2 implies stronger aberrations on the illumination pattern)
                     %3 = orka figure (only for 2D objects); 0: no
                     %aberration map
@@ -111,7 +111,7 @@ end
 
 if use_speckles
     % NumSpeck=80;  % Number of Speckle images
-    myspeckles=GenSpeckles(size(obj),0.1,2,NumSpeck);
+    myspeckles=GenSpeckles(size(obj),0.1,2,NumSpeck); myspecklesIdeal=myspeckles;
 else
  %myspeckles=GenSIM(size(a),SIMDist,3,3,1,0);  % coarse grating, phases and directions and contrast (1.0 means perfect)
     if sw_AbberationMap==1
@@ -273,7 +273,6 @@ MyIlluReg={'ForcePos',[];'NormFac',1e-5};
 MyIlluReg={'NormFac',1e-5};
 NumIter=[50 5 25 5];
 MySampling=[1 1 10];
-
 
 [myDeconvBlind,ResIllu,EvolIllu,EvolObj]=GenericDeconvolution(img,h,NumIter,NormMethod,SearchMethod,{MyObjReg,MyIlluReg},MySampling,DeconvBorders,[],useCuda,extStack); 
 resIllu=cat(4,myillu{:});

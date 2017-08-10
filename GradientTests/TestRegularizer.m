@@ -1,14 +1,16 @@
 %03.03.2014: Test new deconv toolbox OK. Aurelie
+% 02.06.2015 : Introduced complex numbers for the object estimate to test the performance. Seems to work, but there were errors in the comparison in this file for complex numbers
 
 % This function simulates a small image and test numerically whether the gradiests as estimated by GenericErrorAndDrivative correspond to what is expected from the error value return of that function
 %clear all
 %disableCuda();
-useCuda=0; disableCuda();
+useCuda=0; %disableCuda();
 sX=10; %10 and 50: checked
 sY=10;
+sZ=4;
 NumIm=2;
 
-obj=dip_image(rand(sX,sY));
+obj=dip_image(rand(sX,sY,sZ));
 
 %%estimate=mean(img)+img*0;  % Careful: This yields rubbish with estimating Regularisations
 %%estimate=obj*1.1;
@@ -16,15 +18,16 @@ obj=dip_image(rand(sX,sY));
 
 %obj=newim(9,9);obj(4,4)=1;
 % estimate=dip_image(rand(sX,sY)+i*rand(sX,sY));  % new OTF estimate (everywhere, not only in the mask)
-objestimate=dip_image(rand(sX,sY));  % current (old) reconstruction estimate
-illu=dip_image(rand(sX,sY,NumIm));   % an illumination distribution
-estimate=dip_image(rand(sX,sY));
+objestimate=dip_image(rand(sX,sY,sZ));  % current (old) reconstruction estimate
+illu=dip_image(rand(sX,sY,sZ,NumIm));   % an illumination distribution
+%estimate=dip_image(rand(sX,sY,sZ));
+estimate=dip_image(rand(sX,sY,sZ)+i*rand(sX,sY,sZ));
 
 
 %%   To not rerun the random generators
 
 %disableCuda();
-h=obj*0;h(2,2)=1;h=gaussf(h);
+h=obj*0;h(4,4,1)=1;h=gaussf(h);
 img=sqrt(prod(size(obj)))*real(ift(ft(obj) .* ft(h)));
 %oimg=convolve(obj,h);
 
@@ -36,7 +39,7 @@ global DeconvMethod;DeconvMethod='LeastSqr';
 global NegPenalty;NegPenalty='NONE';
 %global NegPenalty;NegPenalty='NegSqr';
 %global RegularisationMethod;RegularisationMethod='GR';
-global RegularisationMethod;RegularisationMethod='GS';
+global RegularisationMethod;RegularisationMethod='ER';
 %global RegularisationMethod;RegularisationMethod='AR';
 %global RegularisationMethod;RegularisationMethod='TV';
 % global RegularisationMethod;RegularisationMethod='NONE';
@@ -58,6 +61,7 @@ global RegularisationParameters;
 ToReg=0;  % 0 is object, 1 means illu, 2 means otf
 % RegularisationParameters=ParseRegularisation({{'ProjPupil',[488,1.4,1.518],[100 100 100]}},ToReg); % will set RegularisationParameters(14,1)=1 % case 'ProjPupil' where only the 2D pupil is estimated
 Regu={{'ForcePos',[];'GS',1e-4},{'ForcePos',[]}};
+Regu={{'GS',1e-4},{}};
 RegularisationParameters=ParseRegularisation(Regu,ToReg);
 global ToEstimate;ToEstimate=1;   % 0 is object (with or without known illu), 1 is illu, 2 is OTF
 global ComplexPSF; ComplexPSF=0; %check that this is correct. Aurelie
@@ -111,6 +115,7 @@ for d=1:size(myVec,2)
     UnitD(d) = 1;
 %     mygrad(d) = (GenericErrorAndDeriv(myVec+(eps * UnitD)) - err) / eps;
     mygrad(d) = (Regularize(myVec+(eps * UnitD),BetaVals) - err) / eps;
+    mygrad(d) = mygrad(d)+ i*(Regularize(myVec+(eps * i*UnitD),BetaVals) - err) / eps;
 end
 
 %grad= reshape(dip_image(grad','single'),size(img));
@@ -122,19 +127,20 @@ end
 % AssignToGlobal(ConvertInputToModel(grad)); % changes otfrep{1} and SavedATF
 % grad=savedATF;
 
-grad= reshape(dip_image(grad','single'),size(img)); %bug if rft and mask
-
+% grad= reshape(dip_image(grad','single'),size(img)); %bug if rft and mask
+grad= reshape(dip_image(transpose(grad),'scomplex'),size(img)); %bug if rft and mask
 
 % AssignToGlobal(ConvertInputToModel(mygrad)); % changes otfrep{1} and SavedATF
 % mygrad=savedATF;
-mygrad=reshape(dip_image(mygrad','single'),size(img));
+%mygrad=reshape(dip_image(mygrad','single'),size(img));
+mygrad=reshape(dip_image(transpose(mygrad),'scomplex'),size(img));
 
 if isa(grad,'cuda')
     mygrad=cuda(mygrad);
 end
 
-cat(3,grad,mygrad)
+cat(4,grad,mygrad)
 
-relerror = (mygrad - grad') ./ max(abs(grad'));
+relerror = (mygrad - grad) ./ max(abs(grad));
 fprintf('Max Error :%g\n',max(abs(relerror)))   % Problems are caused by the hessian operator on finite arrays at the edges
-fprintf('Max Center Error :%g\n',max(abs(relerror(1:end-1,1:end-1))))   % Problems are caused by the hessian operator on finite arrays at the edges
+fprintf('Max Center Error :%g\n',max(abs(relerror(1:end-1,1:end-1,:))))   % Problems are caused by the hessian operator on finite arrays at the edges

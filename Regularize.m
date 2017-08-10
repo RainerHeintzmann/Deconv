@@ -11,7 +11,7 @@ if myLambda ~= 0
 end
 myLambda=RegularisationParameters(2,1); %case 'AR'  % Arigovindan's roughness penalty
 if myLambda ~= 0
-    [aReg,aRegGrad]=RegularizeAR(toRegularize,BetaVals,RegularisationParameters(2,2));
+    [aReg,aRegGrad]=RegularizeER(toRegularize,BetaVals,RegularisationParameters(2,2));
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
 

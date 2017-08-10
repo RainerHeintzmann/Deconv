@@ -4,9 +4,9 @@ scaleX=40;
 scaleZ=100;
 Offset=0;  % 10
 
-if (0)
+if (1)
     a=readim('chromo3d');
-    h=readim('psf.ics');
+    h=extract(readim('psf.ics'),size(a));
     % h=h/sum(h);
 else
     a=readim('chromo3d');
@@ -23,7 +23,6 @@ else
     end
 end
 obj=a;
-
 
 fobj = ft(obj);
 otfs=cell(2,1);
@@ -44,3 +43,4 @@ useCuda=0;
 myDeconvS=GenericDeconvolution(img,h,195,'Poisson','RLL',{'Resample',2},[1 1 1],[0 0 0],[],useCuda)
 myDeconv=GenericDeconvolution(img,h,195,'Poisson','RLL',{},[1 1 1],[0 0 0],[],useCuda); 
 st=cat(1,img{1},myDeconv)
+st=cat(1,obj*1000,myDeconvS)
