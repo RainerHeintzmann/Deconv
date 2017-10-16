@@ -93,7 +93,7 @@ for n=1:size(mycells,1)
             if numel(mycells{n,2}) > 1
                 RegMat1(5,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
-                RegMat1(5,2)=1e-4;  % default value for nominator regularisation
+                RegMat1(5,2)=0.1; % 1e-4 is too low and causes hot pixels;  % default value for nominator regularisation
             end
             if numel(mycells{n,2}) > 2
                 RegMat1(5,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
