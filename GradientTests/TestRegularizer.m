@@ -4,7 +4,7 @@
 % This function simulates a small image and test numerically whether the gradiests as estimated by GenericErrorAndDrivative correspond to what is expected from the error value return of that function
 %clear all
 %disableCuda();
-useCuda=0; %disableCuda();
+useCuda=1; %disableCuda();
 sX=10; %10 and 50: checked
 sY=10;
 sZ=4;
@@ -25,8 +25,9 @@ estimate=dip_image(rand(sX,sY,sZ)+i*rand(sX,sY,sZ));
 
 
 %%   To not rerun the random generators
-
-%disableCuda();
+if ~useCuda
+    disableCuda();
+end
 h=obj*0;h(4,4,1)=1;h=gaussf(h);
 img=sqrt(prod(size(obj)))*real(ift(ft(obj) .* ft(h)));
 %oimg=convolve(obj,h);
@@ -38,8 +39,8 @@ global DeconvMethod;DeconvMethod='LeastSqr';
 %global DeconvMethod;DeconvMethod='Poisson';
 global NegPenalty;NegPenalty='NONE';
 %global NegPenalty;NegPenalty='NegSqr';
-%global RegularisationMethod;RegularisationMethod='GR';
-global RegularisationMethod;RegularisationMethod='ER';
+global RegularisationMethod;RegularisationMethod='GR';
+%global RegularisationMethod;RegularisationMethod='ER';
 %global RegularisationMethod;RegularisationMethod='AR';
 %global RegularisationMethod;RegularisationMethod='TV';
 % global RegularisationMethod;RegularisationMethod='NONE';
@@ -61,7 +62,7 @@ global RegularisationParameters;
 ToReg=0;  % 0 is object, 1 means illu, 2 means otf
 % RegularisationParameters=ParseRegularisation({{'ProjPupil',[488,1.4,1.518],[100 100 100]}},ToReg); % will set RegularisationParameters(14,1)=1 % case 'ProjPupil' where only the 2D pupil is estimated
 Regu={{'ForcePos',[];'GS',1e-4},{'ForcePos',[]}};
-Regu={{'GS',1e-4},{}};
+Regu={{'GR',1e-4;'ForcePos',[]},{}};
 RegularisationParameters=ParseRegularisation(Regu,ToReg);
 global ToEstimate;ToEstimate=1;   % 0 is object (with or without known illu), 1 is illu, 2 is OTF
 global ComplexPSF; ComplexPSF=0; %check that this is correct. Aurelie
@@ -92,7 +93,7 @@ my_sumcond={NumIm};
 [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
 
 %%   Do all the cuda conversions here to test the cuda variant of the algorithm
-if (1)
+if (useCuda)
 initCuda();
 myVec=cuda(myVec);
 [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
@@ -107,6 +108,8 @@ myVec=cuda(myVec);
 % aRecon=cuda(aRecon);
 % 
 % [err,grad]=GenericErrorAndDeriv(myVec);
+else
+    [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
 end
 %%
 clear mygrad;
