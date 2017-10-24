@@ -1,6 +1,4 @@
-% MyIdivErrorAndDeriv(aRecon) : Error measure for deconvolution algorithm
-% this function interpretes the 4th dimension as a multi-view deconvolution
-% each element of the 4th dimension having a corresponding PSF
+% [err,thegrad]=GenericErrorAndDeriv(myinput) : Error measure for deconvolution algorithm
 
 %***************************************************************************
 %   Copyright (C) 2008-2009 by Rainer Heintzmann                          *

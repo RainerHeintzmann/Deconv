@@ -22,7 +22,7 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=21;
+NumMaxPar=27;
 RegMat1 = zeros(NumMaxPar,3); % Object updates
 RegMat2 = zeros(NumMaxPar,3); % Illumination updates
 RegMat3 = zeros(NumMaxPar,3); % PSF updates
@@ -185,6 +185,73 @@ for n=1:size(mycells,1)
             end
         case 'ReadVariance'
             ReadVariance=mycells{n,2}(1);
+        case 'LAP'  % Args are : Lambda
+            RegMat1(22,1)=mycells{n,2}(1);
+        case 'GRLapGrad6'  % Args are : Lambda
+            RegMat1(23,1)=mycells{n,2}(1);
+            RegMat1(23,2)=0.1;
+            if numel(mycells{n,2}) > 1
+                RegMat1(23,2)=mycells{n,2}(2);  % optional modified Good's roughness
+            else
+                RegMat1(23,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+            end
+            if numel(mycells{n,2}) > 2
+                RegMat1(23,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
+            else
+                RegMat1(23,3)=0;  % default value: no convolution
+            end 
+        case 'GRLapGradReg'  % Args are : Lambda
+            RegMat1(24,1)=mycells{n,2}(1);
+            RegMat1(24,2)=0.1;
+            if numel(mycells{n,2}) > 1
+                RegMat1(24,2)=mycells{n,2}(2);  % optional modified Good's roughness
+            else
+                RegMat1(24,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+            end
+            if numel(mycells{n,2}) > 2
+                RegMat1(24,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
+            else
+                RegMat1(24,3)=0;  % default value: no convolution
+            end  
+        case 'GRCentral'  % Args are : Lambda
+            RegMat1(25,1)=mycells{n,2}(1);
+            RegMat1(25,2)=0.1;
+            if numel(mycells{n,2}) > 1
+                RegMat1(25,2)=mycells{n,2}(2);  % optional modified Good's roughness
+            else
+                RegMat1(25,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+            end
+            if numel(mycells{n,2}) > 2
+                RegMat1(25,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
+            else
+                RegMat1(25,3)=0;  % default value: no convolution
+            end  
+       case 'GRLap6'  % Args are : Lambda
+            RegMat1(26,1)=mycells{n,2}(1);
+            RegMat1(26,2)=0.1;
+            if numel(mycells{n,2}) > 1
+                RegMat1(26,2)=mycells{n,2}(2);  % optional modified Good's roughness
+            else
+                RegMat1(26,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+            end
+            if numel(mycells{n,2}) > 2
+                RegMat1(26,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
+            else
+                RegMat1(26,3)=0;  % default value: no convolution
+            end
+        case 'Lap27'  % Args are : Lambda
+            RegMat1(27,1)=mycells{n,2}(1);
+            RegMat1(27,2)=0.1;
+            if numel(mycells{n,2}) > 1
+                RegMat1(27,2)=mycells{n,2}(2);  % optional modified Good's roughness
+            else
+                RegMat1(27,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+            end
+            if numel(mycells{n,2}) > 2
+                RegMat1(27,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
+            else
+                RegMat1(27,3)=0;  % default value: no convolution
+            end 
         otherwise
             fprintf('Unknown Flag: %s\n',mycells{n,1});
             error('For regularisation only TV, ER, GR, CO, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil, Illumination, IlluMask, FTData and StartImg are allowed');
