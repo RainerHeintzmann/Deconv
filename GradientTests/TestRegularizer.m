@@ -92,19 +92,21 @@ my_sumcond={NumIm};
 [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
 
 %%   Do all the cuda conversions here to test the cuda variant of the algorithm
-if (0)
+if (1)
 initCuda();
 myVec=cuda(myVec);
-grad=cuda(grad);
-for n=1:numel(myillu)
-    myillu{n}=cuda(myillu{n});
-    myim{n}=cuda(myim{n});
-end
-otfrep{1}=rft(fftshift(cuda(h)));
-DeconvMask=cuda(DeconvMask);
-aRecon=cuda(aRecon);
+[err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
 
-[err,grad]=GenericErrorAndDeriv(myVec);
+% grad=cuda(grad);
+% for n=1:numel(myillu)
+%     myillu{n}=cuda(myillu{n});
+%     myim{n}=cuda(myim{n});
+% end
+% otfrep{1}=rft(fftshift(cuda(h)));
+% % DeconvMask=cuda(DeconvMask);
+% aRecon=cuda(aRecon);
+% 
+% [err,grad]=GenericErrorAndDeriv(myVec);
 end
 %%
 clear mygrad;
