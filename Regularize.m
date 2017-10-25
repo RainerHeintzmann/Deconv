@@ -39,3 +39,34 @@ if myLambda ~= 0
     [aReg,aRegGrad]=RegularizeCO(toRegularize);  % Conchello regularisation g^2
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
+
+myLambda=RegularisationParameters(22,1); %case 'LAP' Laplaceoperator 6 star scheme  
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeLap(toRegularize,BetaVals); 
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+myLambda=RegularisationParameters(23,1); %case 'GRLapGrad6'  % Good's roughness Gradient penalty: Laplaceoperator ^ 2/f (central difference 6 star scheme)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRLapGrad6(toRegularize,BetaVals,RegularisationParameters(23,2),RegularisationParameters(23,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+myLambda=RegularisationParameters(24,1); %case 'GRLapGradReg'  % Good's roughness Gradient + current value penalty: Laplaceoperator ^ 2/f (6 star scheme)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRLapGradReg(toRegularize,BetaVals,RegularisationParameters(24,2),RegularisationParameters(24,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+myLambda=RegularisationParameters(25,1); %case 'GRCentral'  % Good's roughness penalty: Gradient ^ 2/f (central differences)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRZentrale(toRegularize,BetaVals,RegularisationParameters(25,2),RegularisationParameters(25,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+myLambda=RegularisationParameters(26,1); %case 'GRLap6'  % Good's roughness penalty: Laplaceopertor /f
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRLap6(toRegularize,BetaVals,RegularisationParameters(26,2),RegularisationParameters(26,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+myLambda=RegularisationParameters(27,1); %case 'Lap27'  % Laplaceoperator 27star scheme
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeLap27(toRegularize,BetaVals,RegularisationParameters(27,2),RegularisationParameters(27,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end

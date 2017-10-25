@@ -4,7 +4,7 @@
 % This function simulates a small image and test numerically whether the gradiests as estimated by GenericErrorAndDrivative correspond to what is expected from the error value return of that function
 %clear all
 %disableCuda();
-useCuda=0; %disableCuda();
+useCuda=1; %disableCuda();
 sX=10; %10 and 50: checked
 sY=10;
 sZ=4;
@@ -20,13 +20,14 @@ obj=dip_image(rand(sX,sY,sZ));
 % estimate=dip_image(rand(sX,sY)+i*rand(sX,sY));  % new OTF estimate (everywhere, not only in the mask)
 objestimate=dip_image(rand(sX,sY,sZ));  % current (old) reconstruction estimate
 illu=dip_image(rand(sX,sY,sZ,NumIm));   % an illumination distribution
-%estimate=dip_image(rand(sX,sY,sZ));
-estimate=dip_image(rand(sX,sY,sZ)+i*rand(sX,sY,sZ));
+estimate=dip_image(rand(sX,sY,sZ));
+%estimate=dip_image(rand(sX,sY,sZ)+i*rand(sX,sY,sZ));
 
 
 %%   To not rerun the random generators
-
-%disableCuda();
+if ~useCuda
+    disableCuda();
+end
 h=obj*0;h(4,4,1)=1;h=gaussf(h);
 img=sqrt(prod(size(obj)))*real(ift(ft(obj) .* ft(h)));
 %oimg=convolve(obj,h);
@@ -39,7 +40,7 @@ global DeconvMethod;DeconvMethod='LeastSqr';
 global NegPenalty;NegPenalty='NONE';
 %global NegPenalty;NegPenalty='NegSqr';
 %global RegularisationMethod;RegularisationMethod='GR';
-global RegularisationMethod;RegularisationMethod='ER';
+%global RegularisationMethod;RegularisationMethod='ER';
 %global RegularisationMethod;RegularisationMethod='AR';
 %global RegularisationMethod;RegularisationMethod='TV';
 % global RegularisationMethod;RegularisationMethod='NONE';
@@ -60,8 +61,17 @@ global aRecon;aRecon=objestimate;
 global RegularisationParameters;
 ToReg=0;  % 0 is object, 1 means illu, 2 means otf
 % RegularisationParameters=ParseRegularisation({{'ProjPupil',[488,1.4,1.518],[100 100 100]}},ToReg); % will set RegularisationParameters(14,1)=1 % case 'ProjPupil' where only the 2D pupil is estimated
-Regu={{'ForcePos',[];'GS',1e-4},{'ForcePos',[]}};
-Regu={{'GS',1e-4},{}};
+
+% Regu={{'ForcePos',[];'GS',1e-4},{'ForcePos',[]}};
+%Regu={{'GR',1e-4;'ForcePos',[]},{}};
+Regu={{'GR',1e-4},{}};
+%Regu={{'GRCentral',1e-4},{}};
+%Regu={{'LAP',1e-4},{}};
+%Regu={{'GRLapGrad6',1e-4},{}};
+%Regu={{'GRLapGradReg',1e-4},{}};
+%Regu={{'GRLap6',1e-4},{}};
+%Regu={{'Lap27',1e-4},{}};
+
 RegularisationParameters=ParseRegularisation(Regu,ToReg);
 global ToEstimate;ToEstimate=1;   % 0 is object (with or without known illu), 1 is illu, 2 is OTF
 global ComplexPSF; ComplexPSF=0; %check that this is correct. Aurelie
@@ -89,13 +99,22 @@ my_sumcond={NumIm};
 
 %%
 % [err,grad]=GenericErrorAndDeriv(myVec);  % to get the analytical gradient solution
-[err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
-
+TestRegOnly=1;
+if TestRegOnly
+    [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
+else
+    [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
+end
 %%   Do all the cuda conversions here to test the cuda variant of the algorithm
-if (1)
+if (useCuda)
 initCuda();
 myVec=cuda(myVec);
-[err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
+
+if TestRegOnly
+    [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
+else
+    [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
+end
 
 % grad=cuda(grad);
 % for n=1:numel(myillu)
@@ -107,17 +126,26 @@ myVec=cuda(myVec);
 % aRecon=cuda(aRecon);
 % 
 % [err,grad]=GenericErrorAndDeriv(myVec);
+else
+if TestRegOnly
+    [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
+else
+    [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
 end
-%%
+end
+%
 clear mygrad;
 eps = 1e-3;
 % myVec=estimate; %To avoid renaming everywhere
 for d=1:size(myVec,2)
     UnitD = myVec*0;
     UnitD(d) = 1;
-%     mygrad(d) = (GenericErrorAndDeriv(myVec+(eps * UnitD)) - err) / eps;
-    mygrad(d) = (Regularize(myVec+(eps * UnitD),BetaVals) - err) / eps;
-    mygrad(d) = mygrad(d)+ i*(Regularize(myVec+(eps * i*UnitD),BetaVals) - err) / eps;
+    if TestRegOnly
+        mygrad(d) = (Regularize(ConvertInputToModel(myVec +(eps * UnitD)),BetaVals) - err) / eps;  % needs a dipImage as input
+    else
+        mygrad(d) = (GenericErrorAndDeriv(myVec+(eps * UnitD)) - err) / eps;  % needs a vector as input
+    end
+    % mygrad(d) = mygrad(d)+ i*(Regularize(myVec+(eps * i*UnitD),BetaVals) - err) / eps;
 end
 
 %grad= reshape(dip_image(grad','single'),size(img));
@@ -130,12 +158,18 @@ end
 % grad=savedATF;
 
 % grad= reshape(dip_image(grad','single'),size(img)); %bug if rft and mask
-grad= reshape(dip_image(transpose(grad),'scomplex'),size(img)); %bug if rft and mask
+% grad= reshape(dip_image(transpose(grad),'scomplex'),size(img)); %bug if rft and mask
+if size(grad,1)==1
+    grad=dip_image(reshape(grad,size(img)));
+end
+if size(mygrad,1)==1
+    mygrad=dip_image(reshape(mygrad,size(img)));
+end
 
 % AssignToGlobal(ConvertInputToModel(mygrad)); % changes otfrep{1} and SavedATF
 % mygrad=savedATF;
 %mygrad=reshape(dip_image(mygrad','single'),size(img));
-mygrad=reshape(dip_image(transpose(mygrad),'scomplex'),size(img));
+%mygrad=reshape(dip_image(transpose(mygrad),'scomplex'),size(img));
 
 if isa(grad,'cuda')
     mygrad=cuda(mygrad);
