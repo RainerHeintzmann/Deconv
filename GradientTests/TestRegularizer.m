@@ -37,6 +37,7 @@ global otfrep;otfrep={};otfrep{1}=rft(h);
 global lambdaPenalty;lambdaPenalty=1.0;
 global DeconvMethod;DeconvMethod='LeastSqr';
 %global DeconvMethod;DeconvMethod='Poisson';
+global ConvertInputToModel;
 global NegPenalty;NegPenalty='NONE';
 %global NegPenalty;NegPenalty='NegSqr';
 %global RegularisationMethod;RegularisationMethod='GR';
@@ -103,7 +104,7 @@ TestRegOnly=1;
 if TestRegOnly
     [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
 else
-    [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
+    [err,grad]=GenericErrorAndDeriv(myVec);  % to get the analytical gradient solution
 end
 %%   Do all the cuda conversions here to test the cuda variant of the algorithm
 if (useCuda)
@@ -113,7 +114,7 @@ myVec=cuda(myVec);
 if TestRegOnly
     [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
 else
-    [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
+    [err,grad]=GenericErrorAndDeriv(myVec);  % to get the analytical gradient solution
 end
 
 % grad=cuda(grad);
@@ -130,7 +131,7 @@ else
 if TestRegOnly
     [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
 else
-    [err,grad]=Regularize(myVec,BetaVals); %input should be estimate?
+    [err,grad]=GenericErrorAndDeriv(myVec);  % to get the analytical gradient solution
 end
 end
 %
