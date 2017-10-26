@@ -23,9 +23,11 @@ function [myReg,myRegGrad]=RegularizeGRZentrale(toRegularize,BetaVals,epsR,doCon
 tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             tRL2=circshift(toRegularize,[0 1 0]);tRR2=circshift(toRegularize,[0 -1 0]);
             tRL3=circshift(toRegularize,[0 0 1]);tRR3=circshift(toRegularize,[0 0 -1]);
-            aGradZ{1}=(tRR1 - tRL1)/(2*BetaVals(1));
-	    aGradZ{2}=(tRR2 - tRL2)/(2*BetaVals(2));
-            aGradZ{3}=(tRR3 - tRL3)/(2*BetaVals(3));
+            
+    	    aGradX=(tRR1 - tRL1)./(2*BetaVals(1));
+            aGradY=(tRR2 - tRL2)./(2*BetaVals(2));
+            aGradZ=(tRR3 - tRL3)./(2*BetaVals(3));
+%             aGradZ{3}=(tRR3 - tRL3)/(BetaVals(3)).^2;
 %             if doConvolve
 %                  toRegularizeC=(toRegularize+tRL1+tRR1+tRL2+tRR2+tRL3+tRR3)/7;  % blurs the nominator
 %             else
@@ -34,15 +36,31 @@ tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             else
                  toRegularizeC=toRegularize; 
             end
-           
-            myReg = sum((abssqr(aGradZ{1}) + abssqr(aGradZ{2}) + abssqr(aGradZ{3})) ./...
-                (epsR+abs(toRegularizeC)));
-            
+            myRegGrad1X=0;
+            myRegGrad2X=0;
+            myRegGrad3X=0;
+            myRegGrad1Y=0;
+            myRegGrad2Y=0;
+            myRegGrad3Y=0;
+            myRegGrad1Z=0;
+            myRegGrad2Z=0;
+            myRegGrad3Z=0;
+           epsR=0.1;
             nom = epsR + abs(toRegularizeC);
-            myRegGrad = - ((abssqr(aGradZ{1}) + abssqr(aGradZ{2}) + abssqr(aGradZ{3})) ./...
-                (nom.^2))+2*(circshift(aGradZ{1}, [1 0 0]))./circshift(nom, [1 0 0])-2*(circshift(aGradZ{1}, [-1 0 0]))./circshift(nom, [-1 0 0])+2*(circshift(aGradZ{2}, [0 1 0]))./circshift(nom, [0 1 0])-2*(circshift(aGradZ{2}, [0 -1 0]))./circshift(nom, [0 -1 0])+2*(circshift(aGradZ{3}, [0 0 1]))./circshift(nom, [0 0 1])-2*(circshift(aGradZ{3}, [0 0 -1]))./circshift(nom, [0 0 -1]);
-       
-  end
+            myReg = sum((((abssqr(aGradX)+abssqr(aGradY)+abssqr(aGradZ))./nom))  );
+           
+            
+            myRegGrad1X =myRegGrad1X -sign(nom).* (abssqr(aGradX))./(nom);
+            myRegGrad1Y =myRegGrad1Y -sign(nom).* (abssqr(aGradY))./(nom);
+            myRegGrad1Z =myRegGrad1Z -sign(nom).* (abssqr(aGradZ))./(nom);
+            myRegGrad2X=myRegGrad2X+(((circshift(aGradX, [1 0 0]))))./(2*BetaVals(1))./(circshift(nom, [1 0 0]));
+            myRegGrad2Y=myRegGrad2Y+(((circshift(aGradY, [0 1 0]))))./(2*BetaVals(2))./(circshift(nom, [0 1 0]));
+            myRegGrad2Z=myRegGrad2Z+(((circshift(aGradZ, [0 0 1]))))./(2*BetaVals(3))./(circshift(nom, [0 0 1]));
+            myRegGrad3X= myRegGrad3X-(((circshift(aGradX, [-1 0 0]))))./(2*BetaVals(1))./(circshift(nom, [-1 0 0]));
+            myRegGrad3Y= myRegGrad3Y-(((circshift(aGradY, [0 -1 0]))))./(2*BetaVals(2))./(circshift(nom, [0 -1 0]));
+            myRegGrad3Z= myRegGrad3Z-(((circshift(aGradZ, [0 0 -1]))))./(2*BetaVals(3))./(circshift(nom, [0 0 -1]));
+myRegGrad=2*myRegGrad2X+2*myRegGrad3X+2*myRegGrad2Y+2*myRegGrad3Y+2*myRegGrad2Z+2*myRegGrad3Z+(myRegGrad1X+myRegGrad1Y+myRegGrad1Z)./nom;  
+end
   %myRegGrad = 2*((aGradL{1}./circshift(nom, [1 0 0]) - aGradR{1}./circshift(nom, [-1 0 0]))/BetaVals(1) + ...
 %                         (aGradL{2}./circshift(nom, [0 1 0]) - aGradR{2}./circshift(nom, [0 -1 0]))/BetaVals(2) + ...
 %                         (aGradL{3}./circshift(nom, [0 0 1]) - aGradR{3}./circshift(nom, [0 0 -1]))/BetaVals(3) + ...

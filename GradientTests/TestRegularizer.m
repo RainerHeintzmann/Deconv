@@ -4,7 +4,7 @@
 % This function simulates a small image and test numerically whether the gradiests as estimated by GenericErrorAndDrivative correspond to what is expected from the error value return of that function
 %clear all
 %disableCuda();
-useCuda=1; %disableCuda();
+useCuda=0; %disableCuda();
 sX=10; %10 and 50: checked
 sY=10;
 sZ=4;
@@ -65,12 +65,12 @@ ToReg=0;  % 0 is object, 1 means illu, 2 means otf
 
 % Regu={{'ForcePos',[];'GS',1e-4},{'ForcePos',[]}};
 %Regu={{'GR',1e-4;'ForcePos',[]},{}};
-Regu={{'GR',1e-4},{}};
-%Regu={{'GRCentral',1e-4},{}};
-%Regu={{'LAP',1e-4},{}};
+%Regu={{'GR',1e-4},{}};
+%Regu={{'GRCentral',1e-4},{}};  % OK 0.007
+%Regu={{'LAP',1e-4},{}};  % OK  0.0006
 %Regu={{'GRLapGrad6',1e-4},{}};
 %Regu={{'GRLapGradReg',1e-4},{}};
-%Regu={{'GRLap6',1e-4},{}};
+Regu={{'GRLap6',1e-4},{}};  % OK 0.01
 %Regu={{'Lap27',1e-4},{}};
 
 RegularisationParameters=ParseRegularisation(Regu,ToReg);
@@ -101,12 +101,12 @@ my_sumcond={NumIm};
 %%
 % [err,grad]=GenericErrorAndDeriv(myVec);  % to get the analytical gradient solution
 TestRegOnly=1;
-if TestRegOnly
-    [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
-else
-    [err,grad]=GenericErrorAndDeriv(myVec);  % to get the analytical gradient solution
-end
-%%   Do all the cuda conversions here to test the cuda variant of the algorithm
+% if TestRegOnly
+%     [err,grad]=Regularize(ConvertInputToModel(myVec),BetaVals); %input should be estimate?
+% else
+%     [err,grad]=GenericErrorAndDeriv(myVec);  % to get the analytical gradient solution
+% end
+%   Do all the cuda conversions here to test the cuda variant of the algorithm
 if (useCuda)
 initCuda();
 myVec=cuda(myVec);

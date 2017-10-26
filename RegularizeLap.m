@@ -23,9 +23,9 @@ function [myReg,myRegGrad]=RegularizeLap(toRegularize,BetaVals,epsR,doConvolve)
 tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             tRL2=circshift(toRegularize,[0 1 0]);tRR2=circshift(toRegularize,[0 -1 0]);
             tRL3=circshift(toRegularize,[0 0 1]);tRR3=circshift(toRegularize,[0 0 -1]);
-            aGradLap{1}=(tRL1+tRR1-2*toRegularize)/(BetaVals(1))^2;
-            aGradLap{2}=(tRL2+tRR2-2*toRegularize)/(BetaVals(2))^2;
-            aGradLap{3}=(tRL3+tRR3-2*toRegularize)/(BetaVals(3))^2;
+            aGradLap{1}=(tRL1+tRR1-2*toRegularize)/(BetaVals(1)).^2;
+            aGradLap{2}=(tRL2+tRR2-2*toRegularize)/(BetaVals(2)).^2;
+            aGradLap{3}=(tRL3+tRR3-2*toRegularize)/(BetaVals(3)).^2;
 %             aGradZ{1}=(tRR1 - tRL1)/(2*BetaVals(1));
 %             
 % 	    aGradZ{2}=(tRR2 - tRL2)/(2*BetaVals(2));
@@ -43,7 +43,8 @@ tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             
            
             
-            nom = (toRegularizeC);
+           
+            
             myRegGrad = 2*(aGradLap{1}./(BetaVals(1)).^2+aGradLap{2}./(BetaVals(2)).^2+aGradLap{3}./(BetaVals(3)).^2)*(-6)+2*(circshift(aGradLap{1},[-1 0 0])./(BetaVals(1)).^2+circshift(aGradLap{2},[-1 0 0])./(BetaVals(2)).^2+circshift(aGradLap{3},[-1 0 0])./(BetaVals(3)).^2) ...
                 +2*(circshift(aGradLap{1},[1 0 0])./(BetaVals(1)).^2+circshift(aGradLap{2},[1 0 0])./(BetaVals(2)).^2+circshift(aGradLap{3},[1 0 0])./(BetaVals(3)).^2)+2*(circshift(aGradLap{1},[0 -1  0])./(BetaVals(1)).^2+circshift(aGradLap{2},[0 -1 0])./(BetaVals(2)).^2+circshift(aGradLap{3},[0 -1 0])./(BetaVals(3)).^2) ...
                 +2*(circshift(aGradLap{1},[0 1 0])./(BetaVals(1)).^2+circshift(aGradLap{2},[0 1 0])./(BetaVals(2)).^2+circshift(aGradLap{3},[0 1 0])./(BetaVals(3)).^2)+2*(circshift(aGradLap{1},[0 0 -1])./(BetaVals(1)).^2+circshift(aGradLap{2},[0 0 -1])./(BetaVals(2)).^2+circshift(aGradLap{3},[0 0 -1])./(BetaVals(3)).^2) ...
