@@ -24,15 +24,15 @@ tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             tRL2=circshift(toRegularize,[0 1 0]);tRR2=circshift(toRegularize,[0 -1 0]);
             tRL3=circshift(toRegularize,[0 0 1]);tRR3=circshift(toRegularize,[0 0 -1]);
             
-            aGradLap{1}=(tRL1+tRR1-9*toRegularize)/(BetaVals(1)).^2;
-            aGradLap{2}=(tRL2+tRR2-9*toRegularize)/(BetaVals(2)).^2;
-            aGradLap{3}=(tRL3+tRR3-9*toRegularize)/(BetaVals(3)).^2;
+            aGradLap{1}=(tRL1+tRR1-9*toRegularize)./(BetaVals(1)).^2;
+            aGradLap{2}=(tRL2+tRR2-9*toRegularize)./(BetaVals(2)).^2;
+            aGradLap{3}=(tRL3+tRR3-9*toRegularize)./(BetaVals(3)).^2;
             drei=(BetaVals(1).^2+BetaVals(2).^2+BetaVals(3).^2);
            
             zweixy=BetaVals(1).^2+BetaVals(2).^2;
             zweixz=BetaVals(1).^2+BetaVals(3).^2;
             zweiyz=BetaVals(2).^2+BetaVals(3).^2;
-            aGradLapDU{1}=circshift(tRL1,[0 1 0])/zweixy+circshift(circshift(tRL1,[0 1 0]),[0 0 1])/drei+circshift(circshift(tRL1,[0 1 0]),[0 0 -1])/drei+circshift(tRR1,[0 1 0])/zweixy+circshift(circshift(tRR1,[0 1 0]),[0 0 1])/drei+circshift(circshift(tRR1,[0 1 0]),[0 0 -1])/drei+circshift(circshift(toRegularize,[0 1 0]),[0 0 1])/zweiyz+circshift(circshift(toRegularize,[0 1 0]),[0 0 -1])/zweiyz;
+            aGradLapDU{1}=circshift(tRL1,[0 1 0])/zweixy+circshift(circshift(tRL1,[0 1 0]),[0 0 1])./drei+circshift(circshift(tRL1,[0 1 0]),[0 0 -1])./drei+circshift(tRR1,[0 1 0])/zweixy+circshift(circshift(tRR1,[0 1 0]),[0 0 1])./drei+circshift(circshift(tRR1,[0 1 0]),[0 0 -1])./drei+circshift(circshift(toRegularize,[0 1 0]),[0 0 1])./zweiyz+circshift(circshift(toRegularize,[0 1 0]),[0 0 -1])./zweiyz;
              aGradLapDM{1}=circshift(tRL1,[0 0 1])/zweixz+circshift(tRL1,[0 0 -1])/zweixz+circshift(tRR1,[0 0 1])/zweixz+circshift(tRR1,[0 0 -1])/zweixz;
                aGradLapDO{1}=circshift(tRL1,[0 -1 0])/zweixy+circshift(circshift(tRL1,[0 -1 0]),[0 0 1])/drei+circshift(circshift(tRL1,[0 -1 0]),[0 0 -1])/drei+circshift(tRR1,[0 -1 0])/zweixy+circshift(circshift(tRR1,[0 -1 0]),[0 0 1])/drei+circshift(circshift(tRR1,[0 -1 0]),[0 0 -1])/drei+circshift(circshift(toRegularize,[0 -1 0]),[0 0 1])/zweiyz+circshift(circshift(toRegularize,[0 1 0]),[0 0 -1])/zweiyz;
 
@@ -53,33 +53,36 @@ tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             else
                  toRegularizeC=toRegularize; 
             end
-            nom = (toRegularizeC+eps);
-            innereAbl{1}=aGradLap{1}+aGradLap{2}+aGradLap{3}+aGradLapDU{1}+aGradLapDM{1}+aGradLapDO{1};
+            
+            innereAbl=aGradLap{1}.^2+aGradLap{2}.^2+aGradLap{3}.^2+aGradLapDU{1}.^2+aGradLapDM{1}.^2+aGradLapDO{1}.^2;
            
-            myReg = sum((innereAbl{1}).^2/nom);
+            myReg = sum((innereAbl));
             
            
+            myRegGrad1=0;
+            myRegGrad2=0;
+            myRegGrad3=0;
+            myRegGrad4=0;
+            myRegGrad5=0;
+            myRegGrad6=0;
+            myRegGrad7=0;
             
-            
-            myRegGrad = sign(toRegularizeC)*(2*(innereAbl{1})*(-27)+2*(circshift(innereAbl{1},[-1 0 0])) ...
-                +2*(circshift(innereAbl{1},[1 0 0]))+2*(circshift(innereAbl{1},[0 -1  0])) ...
-                +2*(circshift(innereAbl{1},[0 1 0]))+2*(circshift(innereAbl{1},[0 0 -1])) ...
-                +2*(circshift(innereAbl{1},[0 0 1])) ...
-                +2*(circshift(circshift(innereAbl{1},[0 0 1]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[0 0 1]),[0 -1 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[0 -1 0])) ...
-                +2*(circshift(circshift(innereAbl{1},[0 0 1]),[1 0 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[1 0 0]))+2*(circshift(circshift(innereAbl{1},[0 0 1]),[-1 0 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[-1 0 0])) ...
-                +2*(circshift(circshift(innereAbl{1},[1 0 0]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[1 0 0]),[0 -1 0]))+2*(circshift(circshift(innereAbl{1},[-1 0 0]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[-1 0 0]),[0 -1 0])) ...
-                +2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 -1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 1 0]),[0 0 -1])) ...
-                +2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 -1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 1 0]),[0 0 -1]))+2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 -1 0]),[0 0 -1]))+2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 -1 0]),[0 0 -1])))/nom ... 
-                -sign(toRegularizeC)*(2*(innereAbl{1})*(-27)+2*(circshift(innereAbl{1},[-1 0 0])) ...
-                +2*(circshift(innereAbl{1},[1 0 0]))+2*(circshift(innereAbl{1},[0 -1  0])) ...
-                +2*(circshift(innereAbl{1},[0 1 0]))+2*(circshift(innereAbl{1},[0 0 -1])) ...
-                +2*(circshift(innereAbl{1},[0 0 1])) ...
-                +2*(circshift(circshift(innereAbl{1},[0 0 1]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[0 0 1]),[0 -1 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[0 -1 0])) ...
-                +2*(circshift(circshift(innereAbl{1},[0 0 1]),[1 0 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[1 0 0]))+2*(circshift(circshift(innereAbl{1},[0 0 1]),[-1 0 0]))+2*(circshift(circshift(innereAbl{1},[0 0 -1]),[-1 0 0])) ...
-                +2*(circshift(circshift(innereAbl{1},[1 0 0]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[1 0 0]),[0 -1 0]))+2*(circshift(circshift(innereAbl{1},[-1 0 0]),[0 1 0]))+2*(circshift(circshift(innereAbl{1},[-1 0 0]),[0 -1 0])) ...
-                +2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 -1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 1 0]),[0 0 -1])) ...
-                +2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 -1 0]),[0 0 1]))+2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 1 0]),[0 0 -1]))+2*(circshift(circshift(circshift(innereAbl{1},[1 0 0]),[0 -1 0]),[0 0 -1]))+2*(circshift(circshift(circshift(innereAbl{1},[-1 0 0]),[0 -1 0]),[0 0 -1])))/nom.^2;
+            myRegGrad1 = -18*aGradLap{1}./(BetaVals(1)).^2-18*aGradLap{2}./(BetaVals(2)).^2-18*aGradLap{3}./(BetaVals(3)).^2;
+               % circshift(tRL1,[0 1 0])/zweixy+                                circshift(circshift(tRL1,[0 1 0]),[0 0 1])./drei+     circshift(circshift(tRL1,[0 1 0]),[0 0 -1])./drei+       circshift(tRR1,[0 1 0])/zweixy+                    circshift(circshift(tRR1,[0 1 0]),[0 0 1])./drei+      circshift(circshift(tRR1,[0 1 0]),[0 0 -1])./drei+         circshift(circshift(toRegularize,[0 1 0]),[0 0 1])./zweiyz+    circshift(circshift(toRegularize,[0 1 0]),[0 0 -1])./zweiyz;
+        
+            myRegGrad2=2*circshift(aGradLapDU{1},[0 -1 0])./zweixy+2*circshift(circshift(aGradLapDU{1},[0 -1 0]),[0 0 -1])./drei+2*circshift(circshift(aGradLapDU{1},[0 -1 0]),[0 0 1])./drei+2*circshift(aGradLapDU{1},[0 -1 0])./zweixy+2*circshift(circshift(aGradLapDU{1},[0 -1 0]),[0 0 -1])./drei+circshift(circshift(aGradLapDU{1},[0 -1 0]),[0 0 1])./drei+circshift(circshift(aGradLapDU{1},[0 -1 0]),[0 0 -1])./zweiyz+circshift(circshift(aGradLapDU{1},[0 -1 0]),[0 0 1])./zweiyz;
+       %                 circshift(tRL1,[0 0 1])/zweixz+           circshift(tRL1,[0 0 -1])/zweixz+            circshift(tRR1,[0 0 1])/zweixz+             circshift(tRR1,[0 0 -1])/zweixz;
+           
+            myRegGrad3=2*circshift(aGradLapDM{1},[0 0 -1])./zweixz+2*circshift(aGradLapDM{1},[0 0 1])./zweixz+2*circshift(aGradLapDM{1},[0 0 -1])./zweixz+2*circshift(aGradLapDM{1},[0 0 1])./zweixz;
+%             aGradLapDO{1}=circshift(tRL1,[0 -1 0])/zweixy+      circshift(circshift(tRL1,[0 -1 0]),[0 0 1])/drei+            circshift(circshift(tRL1,[0 -1 0]),[0 0 -1])/drei+           circshift(tRR1,[0 -1 0])/zweixy+            circshift(circshift(tRR1,[0 -1 0]),[0 0 1])/drei+            circshift(circshift(tRR1,[0 -1 0]),[0 0 -1])/drei+          circshift(circshift(toRegularize,[0 -1 0]),[0 0 1])/zweiyz+      circshift(circshift(toRegularize,[0 1 0]),[0 0 -1])/zweiyz;
 
+            myRegGrad4=2*circshift(aGradLapDO{1},[0 1 0])./zweixy+2*circshift(circshift(aGradLapDO{1},[0 1 0]),[0 0 -1])./drei+2*circshift(circshift(aGradLapDO{1},[0 1 0]),[0 0 1])./drei+2*circshift(aGradLapDO{1},[0 1 0])./zweixy+2*circshift(circshift(aGradLapDO{1},[0 1 0]),[0 0 -1])./drei+2*circshift(circshift(aGradLapDO{1},[0 1 0]),[0 0 1])./drei+2*circshift(circshift(aGradLapDO{1},[0 1 0]),[0 0 -1])./zweiyz+2*circshift(circshift(aGradLapDO{1},[0 -1 0]),[0 0 1])./zweiyz;
+          
+            myRegGrad5=2*circshift(aGradLap{1},[1 0 0])./(BetaVals(1)).^2+2*circshift(aGradLap{1},[-1 0 0])./(BetaVals(1)).^2; 
+            myRegGrad6=2*circshift(aGradLap{2},[0 1 0])./(BetaVals(2)).^2+2*circshift(aGradLap{2},[0 -1 0])./(BetaVals(2)).^2; 
+            myRegGrad7=2*circshift(aGradLap{3},[0 0 1])./(BetaVals(3)).^2+2*circshift(aGradLap{3},[0 0 -1])./(BetaVals(3)).^2; 
+                 
+                myRegGrad=myRegGrad1+myRegGrad2+myRegGrad3+myRegGrad4+myRegGrad5+myRegGrad6+myRegGrad7;
   end
   %myRegGrad = 2*((aGradL{1}./circshift(nom, [1 0 0]) - aGradR{1}./circshift(nom, [-1 0 0]))/BetaVals(1) + ...
 %                         (aGradL{2}./circshift(nom, [0 1 0]) - aGradR{2}./circshift(nom, [0 -1 0]))/BetaVals(2) + ...
