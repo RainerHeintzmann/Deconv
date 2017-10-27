@@ -27,6 +27,8 @@ RegMat1 = zeros(NumMaxPar,3); % Object updates
 RegMat2 = zeros(NumMaxPar,3); % Illumination updates
 RegMat3 = zeros(NumMaxPar,3); % PSF updates
 
+DefaultEpsR = 1.0;   % 0.1 is still too small and generates "hot" pixels
+
 switch DeconvMethod
     case 'LeastSqr'
         RegMat1(10,1)=0;
@@ -89,11 +91,10 @@ for n=1:size(mycells,1)
             RegMat1(4,1)=mycells{n,2};
         case 'GR'  % Args are : Lambda
             RegMat1(5,1)=mycells{n,2}(1);
-            RegMat1(5,2)=0.1;
             if numel(mycells{n,2}) > 1
                 RegMat1(5,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
-                RegMat1(5,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+                RegMat1(5,2)=DefaultEpsR; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
             end
             if numel(mycells{n,2}) > 2
                 RegMat1(5,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
@@ -189,11 +190,10 @@ for n=1:size(mycells,1)
             RegMat1(22,1)=mycells{n,2}(1);
         case 'GRLapGrad6'  % Args are : Lambda
             RegMat1(23,1)=mycells{n,2}(1);
-            RegMat1(23,2)=0.1;
             if numel(mycells{n,2}) > 1
                 RegMat1(23,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
-                RegMat1(23,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+                RegMat1(23,2)=DefaultEpsR; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
             end
             if numel(mycells{n,2}) > 2
                 RegMat1(23,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
@@ -202,11 +202,10 @@ for n=1:size(mycells,1)
             end 
         case 'GRLapGradReg'  % Args are : Lambda
             RegMat1(24,1)=mycells{n,2}(1);
-            RegMat1(24,2)=0.1;
             if numel(mycells{n,2}) > 1
                 RegMat1(24,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
-                RegMat1(24,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+                RegMat1(24,2)=DefaultEpsR; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
             end
             if numel(mycells{n,2}) > 2
                 RegMat1(24,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
@@ -215,11 +214,10 @@ for n=1:size(mycells,1)
             end  
         case 'GRCentral'  % Args are : Lambda
             RegMat1(25,1)=mycells{n,2}(1);
-            RegMat1(25,2)=0.1;
             if numel(mycells{n,2}) > 1
                 RegMat1(25,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
-                RegMat1(25,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+                RegMat1(25,2)=DefaultEpsR; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
             end
             if numel(mycells{n,2}) > 2
                 RegMat1(25,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
@@ -228,11 +226,10 @@ for n=1:size(mycells,1)
             end  
        case 'GRLap6'  % Args are : Lambda
             RegMat1(26,1)=mycells{n,2}(1);
-            RegMat1(26,2)=0.1;
             if numel(mycells{n,2}) > 1
                 RegMat1(26,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
-                RegMat1(26,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+                RegMat1(26,2)=DefaultEpsR; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
             end
             if numel(mycells{n,2}) > 2
                 RegMat1(26,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
@@ -241,11 +238,10 @@ for n=1:size(mycells,1)
             end
         case 'Lap27'  % Args are : Lambda
             RegMat1(27,1)=mycells{n,2}(1);
-            RegMat1(27,2)=0.1;
             if numel(mycells{n,2}) > 1
                 RegMat1(27,2)=mycells{n,2}(2);  % optional modified Good's roughness
             else
-                RegMat1(27,2)=0.1; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
+                RegMat1(27,2)=DefaultEpsR; % This number is too low and causes hot pixels: 1e-4;  % default value for nominator regularisation
             end
             if numel(mycells{n,2}) > 2
                 RegMat1(27,3)=mycells{n,2}(3);  % optional flag for convolution in the nominator
