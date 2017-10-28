@@ -45,11 +45,10 @@ tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             myRegGrad1Z=0;
             myRegGrad2Z=0;
             myRegGrad3Z=0;
-           epsR=0.1;
+
             nom = epsR + abs(toRegularizeC);
             myReg = sum((((abssqr(aGradX)+abssqr(aGradY)+abssqr(aGradZ))./nom))  );
-           
-            
+                       
             myRegGrad1X =myRegGrad1X -sign(nom).* (abssqr(aGradX))./(nom);
             myRegGrad1Y =myRegGrad1Y -sign(nom).* (abssqr(aGradY))./(nom);
             myRegGrad1Z =myRegGrad1Z -sign(nom).* (abssqr(aGradZ))./(nom);

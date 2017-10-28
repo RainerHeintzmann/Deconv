@@ -10,7 +10,7 @@
 
 function [myReg,myRegGrad]=RegularizeGRLapGradReg(toRegularize,BetaVals,epsR,doConvolve)
         if nargin < 3
-            epsR=0.4;  % If this value is too small the updates can lead to a numerical instability problem
+            epsR=0.1;  % If this value is too small the updates can lead to a numerical instability problem
         end
         if nargin < 4
             doConvolve=0;   % If Active: This Trick devides by a better estimate of the local intensity.
