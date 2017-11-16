@@ -6,6 +6,7 @@ global aResampling;
 global myillu;   % here the conversion to cuda could be performed. "useCudaGlobal". Aurelie can you do this?
 global myotfs;
 global aRecon;
+global RefObject;
 global myillu_mask;
 global myillu_sumcond;
 global PupilInterpolators;
@@ -105,6 +106,8 @@ for n=1:size(mycells,1)
             RegMat1(11,1)=mycells{n,2};
         case 'Reuse'
             RegMat1(6,1)=1;  % Reuse what is in aRecon
+        case 'RefObject'  % Reference Object for the Deconv results to be compared to
+            RefObject=mycells{n,2};
         case 'StartImg'
             if ~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda'))
                 error('When submitting a starting image for object or illumination, it has to be a dip_image or cuda type');

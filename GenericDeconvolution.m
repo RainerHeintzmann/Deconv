@@ -97,6 +97,11 @@ global useCudaGlobal;
 global ConvertInputToModel; % Will change either aRecon, myillu or otfrep. It can be convertVecToObj, convertVecToIllu, convertVecToPSF
 global ConvertModelToVec; % Contains the routine to convert the model (e.g. the gradient of the object) into the vector to iterate
 global AssignToGlobal; % Assigns the converted data to the appropriate global variable and return an empty gradient vector
+global RefObject;  % If supplied by the user, it is used to check the progress during iterations
+global RefObject_SSQ;  % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_SAbs; % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_SSQ2;  % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_SAbs2; % For checking the progress to the ground truth during iterations.  RH 2017
 
 %global ComplexObj;    % Can the object to estimate be complex valued?
 %global IntensityData;  % Is the supplied data the abs square of the object to estimate?
@@ -427,9 +432,6 @@ for v=1:length(myim)
 end
 mymean=mysum/length(myim);  % Force it to be real
 
-if RegObj(6,1)  % means reuse previous result
-    startVec=aRecon;
-else
     if (1)
         svecsize=NewIlluSize; % as defined above.  Not size(myim{1}) is the object lives in a different space
         if RegObj(7,1)  % this means a complex object shall be reconstructed. Thus the start vector also needs to be complex
@@ -444,12 +446,10 @@ else
             startVec=startVec+mymean-RegObj(12,1);  % account for the background value in the object estimate
             % startVec=NumViews*(double(repmat(mymean,[1 prod(svecsize)])))';
         end
-        aRecon=startVec;
     else
         global para;
         startVec=NumViews*para.res_object_resampled * mymean / mean(para.res_object_resampled)';   % To test it on SIM simulations
-    end
-    
+    end    
     
     if (~RegObj(7,1))  % Even though the data may be complex, the model may be forced to be real.
         startVec=abs(startVec); % sqrt will be applied later if needed. This is only to force it to be a real valued quantity even if the data is complex
@@ -470,7 +470,6 @@ else
             startVec=startVec/sqrt(sum(otfrep{1}));
         end
     end
-end
 
 AssignFunctions(RegularisationParameters,0); % Object estimate for the startVec estimation below.
 startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
@@ -496,6 +495,23 @@ tic
 % end
 clear mymean;
 
+if ~isempty(RefObject)
+        myScale = mean(RefObject) / mean(myim{1});
+        if (abs(myScale -1.0) > 0.01)
+            fprintf('WARNING! Reference Object and measured data have a significantly different mean value! Adapting the reference by a scaling factor %g\n',myScale);
+            RefObject = RefObject / myScale;
+        end
+        if (~isvector(RefObject))
+            RefObject=ConvertModelToVec(RefObject);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+        end
+        % if ~RegObj(6,1)  % means reuse previous result
+            RefObject_SSQ=[];  % For checking the progress to the ground truth during iterations.  
+            RefObject_SAbs=[]; % For checking the progress to the ground truth during iterations.  
+            RefObject_SSQ2=[];  % For checking the progress to the ground truth during iterations. 
+            RefObject_SAbs2=[]; % For checking the progress to the ground truth during iterations. 
+        % end
+end
+
 %lambdaPenalty=0; % 1e6;
 if Update(1)~='B'
     %NormFac=0.06;
@@ -507,7 +523,9 @@ if Update(1)~='B'
             else
                 AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
             end
+            savedRecon=aRecon;
             [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+            aRecon=savedRecon; clear savedRecon;
             NormFac=1/(norm(agrad)/numel(agrad))/1e6; % /1e6
         %[val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
         %aNorm=1/(norm(agrad)/numel(agrad));
@@ -516,6 +534,10 @@ if Update(1)~='B'
         NormFac=RegularisationParameters(18,1); %0.06;  % 1e-6
     end
     fprintf('\nObject NormFac is %g\n',NormFac);
+    if RegObj(6,1)  % means reuse previous result
+        startVec=aRecon;
+        startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+    end
     RegularisationParameters=RegObj;
     if isempty(myillu)
         AssignFunctions(RegularisationParameters,0); % To estimate is Object (non-blind)
@@ -527,7 +549,7 @@ if Update(1)~='B'
 
     AssignToGlobal(ConvertInputToModel(myRes)); % Will save myRes to aRecon and correct for possible squaring ...
     if nargout > 3
-          evolObj=myoutput.trace.fval;
+          evolObj=myoutput.trace.fval / NormFac;
     end
 else % Do a blind estimation of the unknown intensity or OTF distribution
 %% Do some sanity checks here
@@ -589,7 +611,9 @@ end
         if (RegularisationParameters(18,1) <= 0)
             NormFac=1;
             RegularisationParameters=RegObj;AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
+            savedRecon=aRecon;
             [msevalue,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
+            aRecon=savedRecon; clear savedRecon;
             aNorm=1/(norm(agrad)/numel(agrad))  / 100;
         else
             aNorm=RegularisationParameters(18,1); % 0.06;
@@ -597,6 +621,10 @@ end
         end
         NormFac=aNorm;
         fprintf('Object NormFac is %g\n',NormFac);
+        if RegObj(6,1)  % means reuse previous result
+            startVec=aRecon;
+            startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+        end
         NormFacOld=aNorm;
         
         myRes=startVec;
@@ -629,7 +657,7 @@ end
                 AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
                 [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,myRes,NumObjIter);  % Will also alter aRecon
                 if nargout > 3
-                    evolObj =[evolObj ; myoutput.trace.fval];
+                    evolObj =[evolObj ; myoutput.trace.fval/ NormFac];
                 end
                 if InstantUpdate
                     AssignToGlobal(ConvertInputToModel(myRes)); % Will save myRes to aRecon
@@ -670,7 +698,7 @@ end
                     NormFac=IlluNorm; 
                     [VecIllu,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecIllu,NumIlluIter);
                     if nargout > 4 && ~isempty(myoutput)
-                        evolIllu=[evolIllu ; myoutput.trace.fval];
+                        evolIllu=[evolIllu ; myoutput.trace.fval / NormFac];
                     end
                     %[VecIllu,msevalue,moreinfo]=minFunc(@GenericErrorAndDeriv,VecIllu,optionsIllu); % @ means: 'Function handle creation'
                     AssignToGlobal(ConvertInputToModel(VecIllu));  % writes result into the myillu images
@@ -819,3 +847,38 @@ global FinalErrNorm
 FinalErrNorm=msevalue/NormFac;
 fprintf('Normalized Error norm is %g\n',FinalErrNorm)
 
+if ~isempty(RefObject)
+    figure
+    plot(RefObject_SAbs,'b');hold on
+    plot(RefObject_SSQ,'g');
+    title('Estimation vector')
+    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+    ylabel('Error to ground truth');
+    xlabel('Iteration number');    
+    fprintf('To access the error values type\nglobal RefObject_SAbs;global RefObject_SSQ;\n')
+    figure
+    plot(RefObject_SAbs2,'b');hold on
+    plot(RefObject_SSQ2,'g');
+    title('Squared estimation vector')
+    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+    ylabel('Error to ground truth');
+    xlabel('Iteration number');    
+    fprintf('To access the error values type\nglobal RefObject_SAbs2;global RefObject_SSQ2;\n')
+
+    figure
+    plot(RefObject_SAbs/RefObject_SAbs(1),'b');hold on
+    plot(RefObject_SSQ/RefObject_SSQ(1),'g');
+    title('Estimation vector')
+    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+    ylabel('Normalized Error to ground truth');
+    xlabel('Iteration number');    
+    figure
+    plot(RefObject_SAbs2/RefObject_SAbs2(1),'b');hold on
+    plot(RefObject_SSQ2/RefObject_SSQ2(1),'g');
+    title('Squared estimation vector')
+    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+    ylabel('Normalized Error to ground truth');
+    xlabel('Iteration number');    
+
+    RefObject=[];  % To not always track stuff
+end

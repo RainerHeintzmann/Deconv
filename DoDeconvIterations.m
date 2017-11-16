@@ -9,7 +9,6 @@
 function [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,startVec,NumIter)
 % global ForcePos;
 global RegularisationParameters;  % This is a matrix with all possible regularisation lambdas (and other parameters)
-global ToEstimate;
 global allObj;
 global ConvertInputToModel;
 global NormFac; % To correct for the NormFactor effect on the gradient in RL
