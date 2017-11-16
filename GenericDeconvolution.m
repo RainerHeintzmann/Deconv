@@ -472,6 +472,11 @@ mymean=mysum/length(myim);  % Force it to be real
     end
 
 AssignFunctions(RegularisationParameters,0); % Object estimate for the startVec estimation below.
+
+if ~RegObj(6,1)  % means no reuse previous result
+    aRecon=startVec;
+end
+
 startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
 % startVec=convertGradToVec(startVec);  % Changes the format to Matlab and packs complex numbers appropriately
 
@@ -624,6 +629,8 @@ end
         if RegObj(6,1)  % means reuse previous result
             startVec=aRecon;
             startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
+        %else
+        %    aRecon{1}=startVec;
         end
         NormFacOld=aNorm;
         
