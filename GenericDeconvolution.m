@@ -79,7 +79,8 @@ global myim; % Cell array of the images
 global myFTim; % used only for the Ptychography trick to avoid the back transforms
 global otfrep; % Cell array of the otfs
 global DeconvMethod;
-global aResampling; 
+global aResampling;   % before convolution
+global subSampling;   % after convolution 
 global RegularisationParameters;
 global DeconvMask;
 global DeconvVariances;
@@ -118,6 +119,7 @@ ReadVariance=1.0;  % Just to give it a default value, if the user does not use t
 myFTim=[];
 DeconvMethod=Method;
 aResampling=1; 
+subSampling=1; 
 %if ~isempty(PupilInterpolators) 
 PupilInterpolators.Newlambda=[];  % To indicate this was not used yet.
 %end
@@ -286,14 +288,21 @@ else
    NewIlluSize=NewSize;
    NewObjSize=NewSize;
 end
-if norm(borderSizes) > 0
+
+if any(subSampling~=1)
+   NewIlluSize = NewIlluSize .* subSampling;  % Only integer factors are allowed
+   NewObjSize = NewObjSize .* subSampling;    
+   NewSize = NewSize .* subSampling;  % for PSF to have the correct size
+end
+
+if norm(borderSizes) > 0 || any(subSampling~=1)
         if (1)  % Here the "one-slice speedup" trick can be disabled or enabled
             if length(NewDataSize) > 2 && OrigSize(3) == 1
                 fprintf('Border regions: Thick slice speedup possible! Will keep Z-datasize of only one slice.\n');
                 NewDataSize(3)=1;
             end
         end
-        if norm(OrigSize-NewDataSize) > 0
+        if norm(OrigSize-NewDataSize) > 0 || (norm(OrigSize-NewSize))
             fprintf('Border region requested, expanding data size from [');
             fprintf('%g,',OrigSize);
             fprintf('] to [');
@@ -473,8 +482,8 @@ mymean=mysum/length(myim);  % Force it to be real
 
 AssignFunctions(RegularisationParameters,0); % Object estimate for the startVec estimation below.
 
-if ~RegObj(6,1)  % means no reuse previous result
-    aRecon=startVec;
+if isempty(aRecon)
+    aRecon=startVec;  % Just to have the size information inside
 end
 
 startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
@@ -540,6 +549,10 @@ if Update(1)~='B'
     end
     fprintf('\nObject NormFac is %g\n',NormFac);
     if RegObj(6,1)  % means reuse previous result
+        if ~equalsizes(size(aRecon),NewSize)
+            fprintf('Warning! Start Data has wrong size. Adapting size.')
+            aRecon=extract(aRecon,NewSize);
+        end
         startVec=aRecon;
         startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
     end
@@ -629,8 +642,6 @@ end
         if RegObj(6,1)  % means reuse previous result
             startVec=aRecon;
             startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
-        %else
-        %    aRecon{1}=startVec;
         end
         NormFacOld=aNorm;
         
@@ -837,7 +848,7 @@ end
 clear otfrep;
 
 if norm(borderSizes) > 0 && keepExtendedStack == 0
-   res=extract(res,floor(aResampling .* OrigSize(1:length(size(res)))));
+   res=extract(res,subSampling .* floor(aResampling .* OrigSize(1:length(size(res)))));
    fprintf('Reduced size to original\n');
    if  exist('resPSF')
        for d=1:length(resPSF)

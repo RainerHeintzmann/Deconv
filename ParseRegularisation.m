@@ -3,6 +3,7 @@ function [RegMat1,RegMat2,RegMat3]=ParseRegularisation(mycells,toReg)
 global DeconvMethod;
 global DeconvMask;
 global aResampling;
+global subSampling;
 global myillu;   % here the conversion to cuda could be performed. "useCudaGlobal". Aurelie can you do this?
 global myotfs;
 global aRecon;
@@ -151,6 +152,11 @@ for n=1:size(mycells,1)
             %ForcePos=1;
         case 'Resample'  % reconstructed object is in a different sampling than data
             aResampling=mycells{n,2};
+        case 'SubSampling'  % This means the data is subsampled by a fixed factor including aliasing
+            subSampling=mycells{n,2};
+            if norm(floor(subSampling)-subSampling) ~=0
+                error('Only Integer values are allowed for "subSampling"');
+            end
         case 'Bg'  % include an offset intensity into the model
             RegMat1(12,1)=mycells{n,2};
         case 'Show' 

@@ -30,6 +30,7 @@ global DeconvMask;  % only data in this mask will be evaluated
 global ToEstimate;   % This flag controls what to estimate in this iteration step. 0: sample density, 1: illumination intensity, 2: both, 3: psf
 global aRecon;   % Here the sample is stored, if the estimation is illumination or psf.
 global aResampling;   % If unequalt to one, a resampling will be introduced betwenn reconstruction and measured data.
+global subSampling;   % If unequalt to one, a resampling will be introduced betwenn reconstruction and measured data.
 global NormFac;  % normalisation factor
 global my_sumcond;   % denotes the positions in myillu for which each the sum condition (down to previous mention) are fullfilled.
 
@@ -60,8 +61,8 @@ end
 
 % Recast the matlab data into the dip_image datastructure
 %aRecon=dip_image(aRecon);
-norm3D = sqrt(prod(size(myim{1})));  % aRecon is not defined yet.
-norm3DObj = sqrt(prod(floor(to3dvec(aResampling) .* to3dvec(size(myim{1})))));  % aRecon is not defined yet.
+norm3D = sqrt(prod(to3dvec(size(myim{1})) .* to3dvec(subSampling)));  % aRecon is not defined yet.
+norm3DObj = sqrt(prod(floor(to3dvec(aResampling) .* to3dvec(subSampling) .* to3dvec(size(myim{1})))));  % aRecon is not defined yet.    .* to3dvec(subSampling)
 DataSize=size(myim{1});
 DataLength=prod(DataSize);
 %if length(DataSize) < 3
@@ -149,11 +150,13 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
             Recons = Recons+FwdModel(aRecon,ftRecon,myIllum,myOtf,norm3D^2/norm3DObj);  % This performs the convolution of the object (multiplied with illumination) with the psf
         end
     end  % of iteration over sub-views (needed for 3D SIM forward model)
+    Recons=FwdSubsample(Recons,subSampling);
     % Functions to be hidden behind FwdModel() are FwdObjConvPSF() FwdObjConvASF() FwdObjIlluConfPSF() and FwdObjIlluConfASF()
     %% Now calculate the residuum depending on the deconvolution method
     [myError,residuum] = CalcResiduum(Recons,myImg,DMask); % May change Recons to force positivity. Possible Functions are ResidPoisson, ResidLeastSqr, ResidWeightedLeastSqr
     % clear Recons;
     err=err+myError;
+    residuum=BwdSubsample(residuum,subSampling);
     %% Apply the Transpose (Bwd Model)
     for subViewOTFNum =1:OTFsPerView  % iterates over sup-views in the case of 3DSIM generating as a sum only one Fwd projected image
         myOtf=otfrep{1+mod(viewNum-1+(subViewOTFNum-1),length(otfrep))};  % This does not cost any time or memory. If only one otf is there it will always be used
