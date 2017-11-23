@@ -482,7 +482,7 @@ mymean=mysum/length(myim);  % Force it to be real
 
 AssignFunctions(RegularisationParameters,0); % Object estimate for the startVec estimation below.
 
-if isempty(aRecon)
+if isempty(aRecon) || ~equalsizes(size(aRecon),size(startVec))
     aRecon=startVec;  % Just to have the size information inside
 end
 
