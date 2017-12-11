@@ -8,8 +8,8 @@
 % myRegGrad : Gradient
 % See also: Verveer et al. Journal of Microscopy, 193, 50-61
 
-function [myReg,myRegGrad]=RegularizeGRLapGrad6(toRegularize,BetaVals,epsR,doConvolve)
-         if nargin < 3
+function [myReg,myRegGrad]=RegularizeGRLapDivReg2(toRegularize,BetaVals,epsR,doConvolve)
+        if nargin < 3
             epsR=0.1;  % If this value is too small the updates can lead to a numerical instability problem
         end
         if nargin < 4
@@ -24,7 +24,6 @@ function [myReg,myRegGrad]=RegularizeGRLapGrad6(toRegularize,BetaVals,epsR,doCon
             ab1=BetaVals(1);
             ab2=BetaVals(2);
             ab3=BetaVals(3);
-            
             aGradLap{1}=(tRL1+tRR1-2*toRegularize)./(ab1).^2;
             
             aGradLap{2}=(tRL2+tRR2-2*toRegularize)./(ab2).^2;
@@ -34,13 +33,17 @@ function [myReg,myRegGrad]=RegularizeGRLapGrad6(toRegularize,BetaVals,epsR,doCon
             aGradZ{3}=(tRR3 - tRL3)./(2*ab3);
             clear tRR3 tRR2 tRR1 tRL1 tRL2 tRL3
 
-            above= (aGradLap{1}+aGradLap{2}+aGradLap{3});
-		    clear aGradLap
-          
-            nom =  ((aGradZ{1})).^2+((aGradZ{2})).^2+((aGradZ{3})).^2+epsR;
+         
+           above= (aGradLap{1}+aGradLap{2}+aGradLap{3});
+		   clear aGradLap
+            
+           v=0.00001; %numerical stability
+            nom =  (abs(aGradZ{1}+v)+abs(aGradZ{2}+v)+abs(aGradZ{3}+v)).^2+(toRegularize+v).^2+epsR;
+            nomo =  ((abs(aGradZ{1}+v))+(abs(aGradZ{2}+v))+(abs(aGradZ{3}+v)));
+         
             myReg = sum((above).^2./nom);
         
-        
+     
         numdims=ndims(toRegularize);
 		myRegGrad=0;
         for d=1:numdims     % This algorithm is n-dimensional. If a particular dimension should not be regularized: choose BetaVals(d)=0 or NaN
@@ -48,27 +51,38 @@ function [myReg,myRegGrad]=RegularizeGRLapGrad6(toRegularize,BetaVals,epsR,doCon
                 myrotshift = zeros(1,numdims); myrotshift(d) = 1.0;
                 
                 
-				myRegGrad=myRegGrad+2*(above).*(-2)./nom./(BetaVals(d)).^2;
-				myRegGrad=myRegGrad+2*(circshift(above,myrotshift))./(circshift(nom,myrotshift)) ./(BetaVals(d)).^2;
-                myrotshift(d) = -1.0;  
-                myRegGrad=myRegGrad+2*(circshift(above,myrotshift))./(circshift(nom,myrotshift))./(BetaVals(d)).^2;
-            
-  
+                myRegGrad=myRegGrad-2.*sign(circshift((aGradZ{d}+v),myrotshift)).*(circshift((nomo),myrotshift)).*(circshift(above,myrotshift)).^2./(circshift(nom,myrotshift)).^2./((2*BetaVals(d)));
+                myrotshift(d) = -1.0;
+                myRegGrad= myRegGrad+2.*sign(circshift((aGradZ{d}+v),myrotshift)).*(circshift((nomo),myrotshift)).*(circshift(above,myrotshift)).^2./(circshift(nom,myrotshift)).^2./((2*BetaVals(d)));
+                
             end
         end
+        clear aGradZ nomo
         for d=1:numdims     % This algorithm is n-dimensional. If a particular dimension should not be regularized: choose BetaVals(d)=0 or NaN
             if ~isnan(BetaVals(d)) && BetaVals(d)~=0
                 myrotshift = zeros(1,numdims); myrotshift(d) = 1.0;
                 
                 
-                myRegGrad=myRegGrad-2*(circshift((aGradZ{d}),myrotshift)).*(circshift(above,myrotshift)).^2./(circshift(nom,myrotshift)).^2./((2*BetaVals(d)));
-                myrotshift(d) = -1.0;
-                myRegGrad= myRegGrad+2*(circshift((aGradZ{d}),myrotshift)).*(circshift(above,myrotshift)).^2./(circshift(nom,myrotshift)).^2./((2*BetaVals(d)));
-                
-                
+				
+				myRegGrad=myRegGrad+2*(circshift(above,myrotshift))./(circshift(nom,myrotshift)) ./(BetaVals(d)).^2;
+                     myrotshift(d) = -1.0;  
+		   myRegGrad=myRegGrad+2*(circshift(above,myrotshift))./(circshift(nom,myrotshift))./(BetaVals(d)).^2;
+            
+  
             end
         end
-		 clear aGradZ
-       
-          % myRegGrad_AbsSqr is already once devided by "nom", now a second time
+
+		 myRegGrad=  myRegGrad-2.*(((toRegularize+v))).*(above).^2./(nom)./nom;
+         myRegGrad1=0;
+         for d=1:numdims     % This algorithm is n-dimensional. If a particular dimension should not be regularized: choose BetaVals(d)=0 or NaN
+             if ~isnan(BetaVals(d)) && BetaVals(d)~=0
+               
+                 
+                 
+                 
+                 myRegGrad1=myRegGrad1+2*(above).*(-2)./nom./(BetaVals(d)).^2;
+                 
+             end
+         end
+myRegGrad=myRegGrad1+myRegGrad;
 end

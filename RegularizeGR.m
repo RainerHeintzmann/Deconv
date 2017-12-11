@@ -43,3 +43,4 @@ function [myReg,myRegGrad]=RegularizeGR(toRegularize,BetaVals,epsR,doConvolve)
         myRegGrad = 2*(myRegGrad + myRegGrad_B./nom);
         clear myRegGrad_B;
         myRegGrad = myRegGrad - sign(toRegularize).*myRegGrad_AbsSqr ./ nom;  % myRegGrad_AbsSqr is already once devided by "nom", now a second time
+end

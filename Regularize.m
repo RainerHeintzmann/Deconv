@@ -70,3 +70,30 @@ if myLambda ~= 0
     [aReg,aRegGrad]=RegularizeLap27(toRegularize,BetaVals,RegularisationParameters(27,2),RegularisationParameters(27,3));
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
+myLambda=RegularisationParameters(28,1); %case 'GRLapGradReg'  % Good's roughness Gradient + current value penalty: Laplaceoperator ^ 2/f (6 star scheme)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRLapDivReg(toRegularize,BetaVals,RegularisationParameters(28,2),RegularisationParameters(28,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+myLambda=RegularisationParameters(29,1); %case 'GRLapGradReg'  % Good's roughness Gradient + current value penalty: Laplaceoperator ^ 2/f (6 star scheme)
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRLapDiv6(toRegularize,BetaVals,RegularisationParameters(29,2),RegularisationParameters(29,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+
+
+myLambda=RegularisationParameters(30,1); %case 'GRLapGradReg'  % Good's roughness Gradient + current value penalty: Laplaceoperator ^ 2/f (6 star scheme)
+
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRLapDiv6stabil(toRegularize,BetaVals,RegularisationParameters(30,2),RegularisationParameters(30,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+
+myLambda=RegularisationParameters(31,1); %case 'GRLapGradReg'  % Good's roughness Gradient + current value penalty: Laplaceoperator ^ 2/f (6 star scheme)
+
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeGRLapDivReg2(toRegularize,BetaVals,RegularisationParameters(31,2),RegularisationParameters(31,3));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+
+end

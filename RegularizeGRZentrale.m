@@ -15,54 +15,46 @@ function [myReg,myRegGrad]=RegularizeGRZentrale(toRegularize,BetaVals,epsR,doCon
         if nargin < 4
             doConvolve=0;   % If Active: This Trick devides by a better estimate of the local intensity.
         end
-        if doConvolve~=0
-            error('doConvolve option is deprecated. Do not use.');
-        end
-        nom = epsR + abs(toRegularize);
+      
+       
         
-tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
+            tRL1=circshift(toRegularize,[1 0 0]);tRR1=circshift(toRegularize,[-1 0 0]);
             tRL2=circshift(toRegularize,[0 1 0]);tRR2=circshift(toRegularize,[0 -1 0]);
             tRL3=circshift(toRegularize,[0 0 1]);tRR3=circshift(toRegularize,[0 0 -1]);
             
-    	    aGradX=(tRR1 - tRL1)./(2*BetaVals(1));
-            aGradY=(tRR2 - tRL2)./(2*BetaVals(2));
-            aGradZ=(tRR3 - tRL3)./(2*BetaVals(3));
-%             aGradZ{3}=(tRR3 - tRL3)/(BetaVals(3)).^2;
-%             if doConvolve
-%                  toRegularizeC=(toRegularize+tRL1+tRR1+tRL2+tRR2+tRL3+tRR3)/7;  % blurs the nominator
-%             else
-            if doConvolve
-                 toRegularizeC=(toRegularize+tRL1+tRR1+tRL2+tRR2+tRL3+tRR3)/7;  % blurs the nominator
-            else
-                 toRegularizeC=toRegularize; 
-            end
-            myRegGrad1X=0;
-            myRegGrad2X=0;
-            myRegGrad3X=0;
-            myRegGrad1Y=0;
-            myRegGrad2Y=0;
-            myRegGrad3Y=0;
-            myRegGrad1Z=0;
-            myRegGrad2Z=0;
-            myRegGrad3Z=0;
-
-            nom = epsR + abs(toRegularizeC);
-            myReg = sum((((abssqr(aGradX)+abssqr(aGradY)+abssqr(aGradZ))./nom))  );
+    	    aGrad{1}=(tRR1 - tRL1)./(2*BetaVals(1));
+            aGrad{2}=(tRR2 - tRL2)./(2*BetaVals(2));
+            aGrad{3}=(tRR3 - tRL3)./(2*BetaVals(3));
+     
+            clear tRR1 tRR2 tRR3 tRL1 tRL2 tRL3
+            nom = epsR + abs(toRegularize);
+            myReg = sum((((abssqr( aGrad{1})+abssqr( aGrad{2})+abssqr( aGrad{3}))./nom))  );
+            above=(abssqr( aGrad{1})+abssqr( aGrad{2})+abssqr( aGrad{3}));
                        
-            myRegGrad1X =myRegGrad1X -sign(nom).* (abssqr(aGradX))./(nom);
-            myRegGrad1Y =myRegGrad1Y -sign(nom).* (abssqr(aGradY))./(nom);
-            myRegGrad1Z =myRegGrad1Z -sign(nom).* (abssqr(aGradZ))./(nom);
-            myRegGrad2X=myRegGrad2X+(((circshift(aGradX, [1 0 0]))))./(2*BetaVals(1))./(circshift(nom, [1 0 0]));
-            myRegGrad2Y=myRegGrad2Y+(((circshift(aGradY, [0 1 0]))))./(2*BetaVals(2))./(circshift(nom, [0 1 0]));
-            myRegGrad2Z=myRegGrad2Z+(((circshift(aGradZ, [0 0 1]))))./(2*BetaVals(3))./(circshift(nom, [0 0 1]));
-            myRegGrad3X= myRegGrad3X-(((circshift(aGradX, [-1 0 0]))))./(2*BetaVals(1))./(circshift(nom, [-1 0 0]));
-            myRegGrad3Y= myRegGrad3Y-(((circshift(aGradY, [0 -1 0]))))./(2*BetaVals(2))./(circshift(nom, [0 -1 0]));
-            myRegGrad3Z= myRegGrad3Z-(((circshift(aGradZ, [0 0 -1]))))./(2*BetaVals(3))./(circshift(nom, [0 0 -1]));
-myRegGrad=2*myRegGrad2X+2*myRegGrad3X+2*myRegGrad2Y+2*myRegGrad3Y+2*myRegGrad2Z+2*myRegGrad3Z+(myRegGrad1X+myRegGrad1Y+myRegGrad1Z)./nom;  
+          
+          
+           numdims=ndims(toRegularize);
+           clear toRegularize
+               
+		myRegGrad=0;
+       for d=1:numdims     % This algorithm is n-dimensional. If a particular dimension should not be regularized: choose BetaVals(d)=0 or NaN
+            if ~isnan(BetaVals(d)) && BetaVals(d)~=0
+                myrotshift = zeros(1,numdims); myrotshift(d) = 1.0;
+                
+                
+				myRegGrad=myRegGrad+2*(((circshift( aGrad{d}, myrotshift))))./(2*BetaVals(d))./(circshift(nom, myrotshift));
+				
+                     myrotshift(d) = -1.0;  
+		  myRegGrad=myRegGrad-2*(((circshift( aGrad{d}, myrotshift))))./(2*BetaVals(d))./(circshift(nom, myrotshift));
+            
+  
+            end
+       end
+        clear aGrad
+        myRegGrad=myRegGrad-sign(nom).* (above)./(nom)./nom;
+            
+            
+            
+         
 end
-  %myRegGrad = 2*((aGradL{1}./circshift(nom, [1 0 0]) - aGradR{1}./circshift(nom, [-1 0 0]))/BetaVals(1) + ...
-%                         (aGradL{2}./circshift(nom, [0 1 0]) - aGradR{2}./circshift(nom, [0 -1 0]))/BetaVals(2) + ...
-%                         (aGradL{3}./circshift(nom, [0 0 1]) - aGradR{3}./circshift(nom, [0 0 -1]))/BetaVals(3) + ...
-%                         ((aGradL{1} - aGradR{1})/BetaVals(1) + (aGradL{2} - aGradR{2})/BetaVals(2) + (aGradL{3} - aGradR{3})/BetaVals(3))./nom) - ...
-%                         sign(toRegularizeC).*(abssqr(aGradL{1}) + abssqr(aGradL{2}) + abssqr(aGradR{1}) + abssqr(aGradR{2}) + ...
-%                         abssqr(aGradL{3}) + abssqr(aGradR{3}))./nom.^2;
+ 
