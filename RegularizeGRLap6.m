@@ -1,12 +1,12 @@
-% [myReg,myRegGrad]=RegularizeGR(toRegularize,BetaVals,epsR,doConvolve) computes Good's roughness regularisation:
-% penalty= |Grad(f)|^2 / (|f|+epsR)
+% [myReg,myRegGrad]=RegularizeGRLap6(toRegularize,BetaVals,epsR,doConvolve) computes  regularisation:
+% penalty= (Laplace(f))^2 / (|f|+epsR)
 % toRegularize : 2D or 3D array to regularize
 % BeatVals : vector of scaling factors (pixelsize)
 % epsR : regularizes the division
 % doConvolve : Flag that uses a convolved version of f in the nominator, if active.  DEPRECATED! Do not use!
 % myReg : Penalty value
 % myRegGrad : Gradient
-% See also: Verveer et al. Journal of Microscopy, 193, 50-61
+% Written by Felix Mucha: f.mucha@web.de
 
 function [myReg,myRegGrad]=RegularizeGRLap6(toRegularize,BetaVals,epsR,doConvolve)
          if nargin < 3
