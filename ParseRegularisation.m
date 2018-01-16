@@ -24,7 +24,7 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=31;
+NumMaxPar=32;
 RegMat1 = zeros(NumMaxPar,3); % Object updates
 RegMat2 = zeros(NumMaxPar,3); % Illumination updates
 RegMat3 = zeros(NumMaxPar,3); % PSF updates
@@ -89,6 +89,14 @@ for n=1:size(mycells,1)
             end
             RegMat1(3,1)=mycells{n,2}(1);
             RegMat1(3,2)=mycells{n,2}(2);
+        case 'Kevran'  % Args are : Lambda, EpsC
+            RegMat1(32,1)=mycells{n,2}(1);
+            if numel(mycells{n,2}) ~= 2
+                fprintf('Using Kevran regularisation, please provide two values in the form [lambda epsR]. epsR is assumed to be 0.5 for now.');
+                RegMat1(32,2)=0.5;
+            else
+                RegMat1(32,2)=mycells{n,2}(2);
+            end
         case 'NegSqr'  % Args are : Lambda
             RegMat1(4,1)=mycells{n,2};
         case 'GR'  % Args are : Lambda

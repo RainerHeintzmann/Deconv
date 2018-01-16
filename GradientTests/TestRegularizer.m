@@ -69,9 +69,11 @@ ToReg=0;  % 0 is object, 1 means illu, 2 means otf
 %Regu={{'GRCentral',1e-4},{}};  % OK 0.007
 %Regu={{'LAP',1e-4},{}};  % OK  0.0006
 %Regu={{'GRLapGrad6',1e-4},{}};
-Regu={{'GRLapGradReg',1e-4},{}};  % 0.11
+%Regu={{'GRLapGradReg',1e-4},{}};  % 0.11
 %Regu={{'GRLap6',1e-4},{}};  % OK 0.01
 %Regu={{'Lap27',1e-4},{}};  OK 0.032
+Regu={{'Kevran',[1e-4 0.5]},{}};  % 0.11
+%Regu={{'TV',[1e-4 0.5]},{}};  % 0.11
 
 RegularisationParameters=ParseRegularisation(Regu,ToReg);
 global ToEstimate;ToEstimate=1;   % 0 is object (with or without known illu), 1 is illu, 2 is OTF

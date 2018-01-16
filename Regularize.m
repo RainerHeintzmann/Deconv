@@ -96,4 +96,11 @@ if myLambda ~= 0
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
 
+myLambda=RegularisationParameters(32,1); %case 'Kevran'  % Good's roughness Gradient + current value penalty: Laplaceoperator ^ 2/f (6 star scheme)
+
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeKevran(toRegularize,BetaVals,RegularisationParameters(32,2));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+
 end
