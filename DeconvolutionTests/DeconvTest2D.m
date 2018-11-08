@@ -16,7 +16,7 @@ img=noise(Offset+NumPhotons*mcconv/max(mcconv),'poisson');  % put some noise on 
 % img(30,150)=1000;
 %%
 if (1) % For the 3D sample
-    useCuda=1;
+    useCuda=0;
     myDeconv=GenericDeconvolution(img,h,85,'Poisson',[],{'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); 
     myDeconvGP=GenericDeconvolution(img,h,85,'Poisson',[],{'GR',0.02;'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); 
     myDeconvKev=GenericDeconvolution(img,h,85,'Poisson',[],{'Kevran',[0.5 0.5];'ForcePos',[]},[1,1,1],[0 0 0],[],useCuda); 

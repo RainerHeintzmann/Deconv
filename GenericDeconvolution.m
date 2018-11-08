@@ -2,7 +2,8 @@
 % image: Image to Deconvolve
 % psf: Point spread function to deconvolve with
 % NumIter(1): Iterations to perform. Optionally the subiterations for initial Object iterations (2) and successive object (3), illumination (4) and psf (5) iterations  can be given.
-% Method: One of 'LeastSqr', 'WeightedLeastSqr', 'Poisson' or 'GaussianWithReadnoise', defining the norm of the data-simulation agreement to optimize
+% Method: One of 'LeastSqr', 'WeightedLeastSqr', 'Poisson' or 'GaussianWithReadnoise', 'Empty' defining the norm of the data-simulation agreement to optimize. 'Empty' always returns zero (useful for gradient tests of the regularizers)
+% 
 % Update: Default: [] uses 'lbfgs', This describes the minimization algorithm (update scheme) to use. You can use all the ones that minFunc allows, but in addition also 'RL' for
 % RichardsonLucy multiplicative (EM) Algorithm, or 'RLL' for a Wolfe line search along the Richardson Lucy update direction
 % 'RLR' uses the recursive way of accelerating the RL algorithm based on Biggs&Andrews, Applied Optics 36,1-9.
@@ -16,6 +17,7 @@
 %       'GS',[lambda]: Gradient squared regularisation. penalty= |Grad(f)|^2
 %       'GR',lambda: Good's roughness regularisation. penalty= |Grad(f)|^2 / (|f|+epsR)
 %       'CO',lambda: Conchello's |f|^2 regularisation (Gaussian prior)
+%       'RealSpaceMask' used for light sheet microscopy in the PSF regularisation field. If only a number is supplied, this is interpreted as the width of the Gaussian
 %       'ER',[lambda,gamma]: ER-regularization according to Arigovindan et al., PNAS, 2013. penalty=ln(epsR+ (|f|^2+ SumHessianSqr)),  SumHessianSqr= (d^2/dxdx f)^2 + (d^2/dydy f)^2+ (2d^2/dxdy f)^2
 %       'Bg', value: Fixed background value (to get the Poisson Statistics right)
 %       'ForcePos',[] : Will make the object the square of an auxiliary function, which is then estimated
@@ -29,6 +31,7 @@
 %       'StartImg', anImage : Uses this image as a starting object for the iterations
 %       'Illumination', anIllumination : Uses the illuminations as given 
 %       'IlluMask', aMask : Allows the user to provide an illumination mask
+%       'MaxTestDim',  for the Gradien testing (use negative iterations number, which amounts to the epsilon for the numeric steps!). How many directions to test in real before going to imaginary.
 %
 % betas: Vector of beta values to vary the weight of different directions (e.g. anisotropic sampling). This should correspond to pixelsizes, for example normalized to the x-pixel size
 % or optical resolution
@@ -46,13 +49,31 @@
 % e.g. result could be 29.4 sec and
 % speedtestDeconv(1)
 % e.g. result could be 3.11 sec
-% Example calls:
-% For Poisson noise, Goods roughness and positivity constraint and twice resampling of the output:
-%     myDeconvGP=GenericDeconvolution(img,h,85,'Poisson',[],{'GR',[0.01 0.1];'ForcePos',[];'Resample',2},[1,1,1],[0 0 0],[],useCuda); gtp=cat(1,img{1},myDeconvGP)
-% For complex data and complex PSF
-%     myDeconv=GenericDeconvolution(img,h,15,'LeastSqr',[],{'Complex',[]},[1 1 1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconv)
 %
-% Contributing Authors: Rainer Heintzmann, Aurelie Jost, Polina Feldmann
+% Example calls:
+%
+% %2D Example for Poisson noise, Goods roughness, positivity constraint and 10 pixels boardser:
+% obj=readim; MaxPhotons=1000;cutSize=[200,200];obj=obj/max(obj)*MaxPhotons;
+% psf=abssqr(ift(rr(size(obj))<30)); otf=ft(psf);otf=otf/max(abs(otf));
+% img=extract(noise(ift(ft(obj) .* otf),'poisson'),cutSize); useCuda=0;
+% myDeconvGP=GenericDeconvolution(img,psf,35,'Poisson',[],{'GR',[0.005 0.1];'ForcePos',[];},[1,1],[10 10],[],useCuda); gtp=cat(1,img{1},myDeconvGP,extract(obj,cutSize))
+% myDeconvTV=GenericDeconvolution(img,psf,35,'Poisson',[],{'TV',[0.0004 500];'ForcePos',[];},[1,1],[10 10],[],useCuda); gtp=cat(1,img{1},myDeconvTV,extract(obj,cutSize))
+% Example use for blind PSF deconvolution:
+%    [obj,dum,psf]=GenericDeconvolution(img,psf,[2 0 40 0 70],'LeastSqr','Blbfgs',{{'StartImg',obj;'ForcePos',[]},{},{'NegSqr',1e9;'CO',1e7}},[1,1,1],[0 0 0],[],useCuda); 
+% %For complex data and complex PSF
+% myDeconv=GenericDeconvolution(img,h,15,'LeastSqr',[],{'Complex',[]},[1 1 1],[0 0 0],[],useCuda); st=cat(1,img{1},myDeconv)
+%
+% %An example with 2x oversampling in the reconstruction:
+% myDeconvGP=GenericDeconvolution(img,h,85,'Poisson',[],{'GR',[0.01 0.1];'ForcePos',[];'Resample',2},[1,1,1],[0 0 0],[],useCuda); gtp=cat(1,img{1},myDeconvGP)
+%
+% Example for a gradient test:
+% obj=readim; MaxPhotons=100;cutSize=[20,20];obj=obj/max(obj)*MaxPhotons;
+% psf=abssqr(ift(rr(size(obj))<5)); otf=ft(psf);otf=otf/max(abs(otf));
+% img=extract(noise(abs(ift(ft(obj) .* otf)),'poisson'),cutSize); useCuda=0;
+% myDeconv=GenericDeconvolution(img,h,-0.1,'Empty',[],{'MaxTestDim',10;'NormFac',1;'GR',0.1;'StartImg',img},[1,1,1],[0 0 0],[],useCuda);%
+%
+% %Contributing Authors: Rainer Heintzmann, Aurelie Jost, Polina Feldmann
+
 
 %***************************************************************************
 %   Copyright (C) 2008-2009 by Rainer Heintzmann                          *
@@ -345,13 +366,15 @@ else
     end
 end
 
-Pupil3DPrepare(size(myim{1}))  % Needs the imagesize to already account for resampling and borders
-% if ~isempty(PupilInterpolators)
-if ~isempty(PupilInterpolators) && ~isempty(PupilInterpolators.Newlambda)&& ~isreal(psf{1}) %Aurelie 22.10.2014: PupilInterpolators used only in the blind ASF deconvolution case
-    PupilInterpolators.indexList2D=ConditionalCudaConvert(PupilInterpolators.indexList2D,useCuda);
-    PupilInterpolators.fullIndex3D=ConditionalCudaConvert(PupilInterpolators.fullIndex3D,useCuda);
-    PupilInterpolators.factorList=ConditionalCudaConvert(PupilInterpolators.factorList,useCuda);
-    PupilInterpolators.Mask=ConditionalCudaConvert(PupilInterpolators.Mask,useCuda,1);
+if (ndims(myim{1})>2 && size(myim{1},3)>1);
+    Pupil3DPrepare(size(myim{1}))  % Needs the imagesize to already account for resampling and borders
+    
+    if ~isempty(PupilInterpolators) && ~isempty(PupilInterpolators.Newlambda)&& ~isreal(psf{1}) %Aurelie 22.10.2014: PupilInterpolators used only in the blind ASF deconvolution case
+        PupilInterpolators.indexList2D=ConditionalCudaConvert(PupilInterpolators.indexList2D,useCuda);
+        PupilInterpolators.fullIndex3D=ConditionalCudaConvert(PupilInterpolators.fullIndex3D,useCuda);
+        PupilInterpolators.factorList=ConditionalCudaConvert(PupilInterpolators.factorList,useCuda);
+        PupilInterpolators.Mask=ConditionalCudaConvert(PupilInterpolators.Mask,useCuda,1);
+    end
 end
 %%
 if isempty(psf{1}) && ~RegObj(21,1)  % Only FTData does not need PSF
@@ -527,7 +550,7 @@ if ~isempty(RefObject)
 end
 
 %lambdaPenalty=0; % 1e6;
-if Update(1)~='B'
+if Update(1)~='B'   % not blind
     %NormFac=0.06;
     if (RegularisationParameters(18,1) <= 0)
             NormFac=1;            
@@ -569,7 +592,7 @@ if Update(1)~='B'
     if nargout > 3
           evolObj=myoutput.trace.fval / NormFac;
     end
-else % Do a blind estimation of the unknown intensity or OTF distribution
+else % 'B' Do a blind estimation of the unknown intensity or OTF distribution
 %% Do some sanity checks here
 if isempty(myillu_sumcond)
     myillu_sumcond={length(myim)};
@@ -789,7 +812,7 @@ end
                 end
                 allotf=cat(4,otfrep{:});
                 psf=fftshift(rift(otfrep{1}));
-                dipshow(6,psf(:,floor(size(psf,2)/2),:));
+                dipshow(6,SubSlice(psf,2)); % (:,floor(size(psf,2)/2),:)
                 global savedATF;
                 if ~isempty(savedATF)
                     dipshow(7,savedATF);

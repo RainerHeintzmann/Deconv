@@ -5,7 +5,12 @@
 NumPhotons=1000;
 Offset=0;  % 10
 
+if (1)
     a=extract(readim('chromo3d')-9,[160 140 32]);
+else
+    a=readtimeseries('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\reference.tif');
+    a=extract(a,[128 128 128],[128 128 64]);
+end
     % h=readim('psf.ics');
     scaleX=50;scaleY=50;scaleZ=120;
     NA=1.4;
@@ -26,6 +31,13 @@ for p=1:numel(h)
     mcconv=sqrt(prod(size(obj))) * real(ift(fobj .* otfs{p}));
     img{p}=noise(Offset+NumPhotons*mcconv/max(mcconv),'poisson');  % put some noise on the image
 end
+
+tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\ImgNoAbberation.tif',dip_image(uint16(img{1})),'no');
+tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\ImgAbberated.tif',dip_image(uint16(img{1})),'no');
+
+tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\PSFNoAbberration.tif',h,'yes','uint16');
+tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\PSFAbberated.tif',ha,'yes','uint16');
+
 obj=Offset+obj*NumPhotons/max(mcconv);
 %%
 if (1) % For the 3D sample

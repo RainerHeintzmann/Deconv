@@ -1,5 +1,7 @@
 function [myReg,myRegGrad]=Regularize(toRegularize,BetaVals)
 global RegularisationParameters;
+global RefImgX;
+global RefImgY;
 
 myReg=0;
 myRegGrad=0;
@@ -100,6 +102,14 @@ myLambda=RegularisationParameters(32,1); %case 'Kevran'  % Good's roughness Grad
 
 if myLambda ~= 0
     [aReg,aRegGrad]=RegularizeKevran(toRegularize,BetaVals,RegularisationParameters(32,2));
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+
+
+myLambda=RegularisationParameters(33,1); %case CLE-GS with Guidance image
+
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals,RefImgX,RefImgY);
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
 

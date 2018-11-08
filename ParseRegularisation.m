@@ -14,6 +14,8 @@ global PupilInterpolators;
 global myim;
 global realSpaceMultiplier;
 global ReadVariance;
+global RefImgX;
+global RefImgY;
 
 %global ComplexObj;
 %ComplexObj=0;
@@ -24,7 +26,7 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=32;
+NumMaxPar=33;
 RegMat1 = zeros(NumMaxPar,3); % Object updates
 RegMat2 = zeros(NumMaxPar,3); % Illumination updates
 RegMat3 = zeros(NumMaxPar,3); % PSF updates
@@ -48,6 +50,10 @@ switch DeconvMethod
         RegMat1(10,1)=3;
         RegMat2(10,1)=3;
         RegMat3(10,1)=3;
+    case 'Empty'
+        RegMat1(10,1)=4;
+        RegMat2(10,1)=4;
+        RegMat3(10,1)=4;
     otherwise
         fprintf('Unknown Update method: %s\n',DeconvMethod);
         error('For update method only LeastSqr, Poisson and WeigthedLeastSqr are allowed.');
@@ -201,8 +207,6 @@ for n=1:size(mycells,1)
                 RegMat1(20,1)=toReg+1;
                 realSpaceMultiplier{toReg+1}=mycells{n,2}(1);    
             end
-        case 'ReadVariance'
-            ReadVariance=mycells{n,2}(1);
         case 'LAP'  % Args are : Lambda
             RegMat1(22,1)=mycells{n,2}(1);
         case 'GRLapGrad6'  % Args are : Lambda
@@ -315,8 +319,14 @@ for n=1:size(mycells,1)
             else
                 RegMat1(27,3)=0;  % default value: no convolution
             end 
+        case 'CLE_GS'  % Args are : Lambda
+            RegMat1(33,1)=mycells{n,2}{1};
+            RefImgX=mycells{n,2}{2};  % Reference Img X
+            RefImgY=mycells{n,2}{3};  % Reference Img Y
+        case 'ReadVariance'
+            ReadVariance=mycells{n,2}(1);
         otherwise
             fprintf('Unknown Flag: %s\n',mycells{n,1});
-            error('For regularisation only TV, ER, GR, CO, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil, Illumination, IlluMask, FTData and StartImg are allowed');
+            error('For regularisation only TV, ER, GR, CO, Kevran, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil, Illumination, IlluMask, FTData and StartImg are allowed');
     end
 end
