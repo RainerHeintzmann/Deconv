@@ -56,44 +56,24 @@ for tz=1:tilenum(3)
             ye=min((ty)*tilesize(2)+aborder(2)-1,imgsize(2)-1); %Aurelie
             zs=(tz-1)*tilesize(3);
             ze=min((tz)*tilesize(3)+aborder(3)-1,imgsize(3)-1); %Aurelie
-            fprintf('Tiled Processing: Tile [%d,%d,%d] ([%d,%d,%d]), from (%d,%d,%d) to (%d,%d,%d)\n',tx,ty,tz,tilenum,xs,ys,zs,xe,ye,ze);
+            fprintf('\n\nTiled Processing: Tile [%d,%d,%d] ([%d,%d,%d]), from (%d,%d,%d) to (%d,%d,%d)\n',tx,ty,tz,tilenum,xs,ys,zs,xe,ye,ze);
             mytile=img(xs:xe,ys:ye,zs:ze); %Cut a tile. Size is as defined in input, except for the last tile.
             if extraOffset~=0
                 mytile=mytile+extraOffset;
             end
             result=aFunction(mytile,myarglist{:}); %Perform the function on each tile
-            sxs=0; %start index of the tile
-            sys=0;
-            szs=0;
-            sxe=size(result,1)-1; %end index of the tile. Aurelie
-            sye=size(result,2)-1; %Aurelie
-            sze=size(result,3)-1; %Aurelie
-            if tx>1
-                xs=xs+floor(aborder(1))/2; %start index to write on final image
-                sxs=floor(aborder(1))/2; %cut away border (start index to read result)
-            end
-            if ty>1
-                ys=ys+floor(aborder(2))/2;
-                sys=floor(aborder(2))/2;
-            end
-            if tz>1
-                zs=zs+floor(aborder(3))/2;
-                szs=floor(aborder(3))/2;
-            end
-            if tx<tilenum(1)
-                xe=xe-floor(aborder(1))/2; %end index to write on final image
-                sxe=sxe-floor(aborder(1))/2; %cut away border (end index to read result). Aurelie
-            end
-            if ty<tilenum(2)
-                ye=ye-floor(aborder(2))/2;
-                sye=sye-floor(aborder(2))/2; %Aurelie
-            end
-            if tz<tilenum(3)
-                ze=ze-floor(aborder(3))/2;
-                sze=sze-floor(aborder(3))/2; %Aurelie
-            end
+            disableCuda();
+            myweights = @(sz,d,left,right) reorient(cat(1,1-cos((ramp(left,1,'freq')+0.5)*pi/2).^2,ramp(sz-left-right,1)*0+1.0,cos((ramp(right,1,'freq')+0.5)*pi/2).^2),d);
+            xL = (tx>1) * aborder(1);
+            xH = (tx<tilenum(1)) * aborder(1);
+            yL = (ty>1) * aborder(2);
+            yH = (ty<tilenum(2)) * aborder(2);
+            zL = (tz>1) * aborder(3);
+            zH = (tz<tilenum(3)) * aborder(3);
+            weights = myweights(size(result,1),1,xL,xH).*myweights(size(result,2),2,yL,yH).*myweights(size(result,3),3,zL,zH) ;
             % Now, cut and paste:
-            resim(xs:xe,ys:ye,zs:ze)=result(sxs:sxe,sys:sye,szs:sze); %Aurelie. Also converts the datatype automatically
+            % resim(xs:xe,ys:ye,zs:ze)=result(sxs:sxe,sys:sye,szs:sze); %Aurelie. Also converts the datatype automatically
+            resim(xs:xe,ys:ye,zs:ze) = resim(xs:xe,ys:ye,zs:ze) + result * weights; 
             tt=toc(tt1);
             progress=(tx-1+(ty-1)*tilenum(1)+(tz-1)*tilenum(2)*tilenum(1)) / prod(tilenum);
             fprintf('Progress: %g percent, Estimated time to go: %.3g minutes\n',progress*100,(tt/progress)*(1-progress)/60)

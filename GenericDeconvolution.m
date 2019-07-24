@@ -142,7 +142,6 @@ DeconvMethod=Method;
 aResampling=1; 
 subSampling=1; 
 %if ~isempty(PupilInterpolators) 
-PupilInterpolators.Newlambda=[];  % To indicate this was not used yet.
 %end
 msevalue=0;
 evolObj=[];
@@ -366,7 +365,7 @@ else
     end
 end
 
-if (ndims(myim{1})>2 && size(myim{1},3)>1);
+if (~isempty(PupilInterpolators) && ndims(myim{1})>2 && size(myim{1},3)>1)
     Pupil3DPrepare(size(myim{1}))  % Needs the imagesize to already account for resampling and borders
     
     if ~isempty(PupilInterpolators) && ~isempty(PupilInterpolators.Newlambda)&& ~isreal(psf{1}) %Aurelie 22.10.2014: PupilInterpolators used only in the blind ASF deconvolution case
