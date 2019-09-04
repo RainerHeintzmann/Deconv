@@ -25,6 +25,7 @@ global myim;
 global myFTim;
 global myillu;  % only of there is an illumination pattern present, will it be used
 global otfrep;
+global BwdOTF;
 global BetaVals;  % These are the scaling factors between pixel coordinates. This is proportional to the pixel width, but should be normalized
 global DeconvMask;  % only data in this mask will be evaluated
 global ToEstimate;   % This flag controls what to estimate in this iteration step. 0: sample density, 1: illumination intensity, 2: both, 3: psf
@@ -48,6 +49,7 @@ global measSum;
 global measSumSqr;
 global useFTComparison;  % only active if Ptychography updates are used in this round
 global Recons;  % to make it accessible from the outside
+global DeconvViewer; % A java viewer in which to show the progress continuously.
 
 %delta= 100; % Weight for the negativtiy penalty
 %delta= 1000; % Weight for the negativtiy penalty
@@ -63,8 +65,8 @@ end
 %aRecon=dip_image(aRecon);
 norm3D = sqrt(prod(to3dvec(size(myim{1})) .* to3dvec(subSampling)));  % aRecon is not defined yet.
 norm3DObj = sqrt(prod(floor(to3dvec(aResampling) .* to3dvec(subSampling) .* to3dvec(size(myim{1})))));  % aRecon is not defined yet.    .* to3dvec(subSampling)
-DataSize=size(myim{1});
-DataLength=prod(DataSize);
+% DataSize=size(myim{1});
+% DataLength=prod(DataSize);
 %if length(DataSize) < 3
 %    DataSize(3) = 1;
 %end
@@ -94,7 +96,21 @@ if isempty(ToEstimate) || ToEstimate==0  % Object estimate is only regularised o
     % myRegGrad=BwdExtraModel(myRegGrad,1);  % The background model is applied after the for loop for all instances    
     thegrad=thegrad+ myRegGrad;
     if RegularisationParameters(13,1)
-        dipshow(3,aRecon);drawnow();
+        if isempty(DeconvViewer)
+            dipshow(3,aRecon);drawnow();
+        else
+            if DeconvViewer == 0
+                DeconvViewer = view5d(aRecon); 
+            else
+                try
+                    view5d(aRecon,0,'replaceElement',DeconvViewer,0);
+                    DeconvViewer.ProcessKeyMainWindow('t');
+                    DeconvViewer.UpdatePanels()
+                catch
+                    dipshow(3,aRecon);drawnow();
+                end
+            end
+        end
     end
 end
 
@@ -133,13 +149,15 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
         end
         
         if viewNum==1 && (isempty(ToEstimate) || ToEstimate==0 || ToEstimate==2) && (isempty(myillu))% Object or OTF estimate
-            if isreal(aRecon) && (norm(size(myOtf)-size(aRecon))~=0)
-                ftRecon=rft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
-                if any(aResampling~=1)
-                    ftRecon=rft_resize(ftRecon,1./aResampling);  % if the user wants to use a different reconstruction grid
+            if ~isequal(FwdModel,@FwdIdentity)  % Otherwise the ft is not needed.
+                if isreal(aRecon) && (norm(size(myOtf)-size(aRecon))~=0)
+                    ftRecon=rft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
+                    if any(aResampling~=1)
+                        ftRecon=rft_resize(ftRecon,1./aResampling);  % if the user wants to use a different reconstruction grid
+                    end
+                else
+                    ftRecon=ft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
                 end
-            else
-                ftRecon=ft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
             end
         end
         %% first we need to apply the forward model
@@ -159,19 +177,26 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
     residuum=BwdSubsample(residuum,subSampling);
     %% Apply the Transpose (Bwd Model)
     for subViewOTFNum =1:OTFsPerView  % iterates over sup-views in the case of 3DSIM generating as a sum only one Fwd projected image
-        myOtf=otfrep{1+mod(viewNum-1+(subViewOTFNum-1),length(otfrep))};  % This does not cost any time or memory. If only one otf is there it will always be used
+        OTFNum = 1+mod(viewNum-1+(subViewOTFNum-1),length(otfrep));
+        myOtf=otfrep{OTFNum};  % This does not cost any time or memory. If only one otf is there it will always be used
         if ~isempty(myillu)
 %             myIllum=myillu{(subViewOTFNum-1),1+mod((viewNum-1),length(myillu))};
             myIllum=myillu{subViewOTFNum,1+mod((viewNum-1),length(myillu))}; %Aurelie 26.05.2014
         else
             myIllum=1;
         end
+
+        if RegularisationParameters(35,1)
+            BwdOtf = BwdOTF{OTFNum};
+        else
+            BwdOtf = myOtf;
+        end
         
         if subViewOTFNum == 1
             % also serves as an initialization for the sum
-            myGrad=BwdModel(residuum,aRecon,ftRecon,myIllum,myOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
+            myGrad=BwdModel(residuum,aRecon,ftRecon,myIllum,BwdOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
         else
-            myGrad=myGrad+BwdModel(residuum,aRecon,ftRecon,myIllum,myOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
+            myGrad=myGrad+BwdModel(residuum,aRecon,ftRecon,myIllum,BwdOtf,norm3DObj);  % This performs the convolution of the residuum with the psf
         end
         
         if viewNum==numViews

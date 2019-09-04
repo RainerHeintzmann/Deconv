@@ -103,6 +103,7 @@ global DeconvMethod;
 global aResampling;   % before convolution
 global subSampling;   % after convolution 
 global RegularisationParameters;
+global DoStop;
 global DeconvMask;
 global DeconvVariances;
 global BetaVals;
@@ -136,11 +137,13 @@ global measSums;
 global allObj;
 global ReadVariance;
 ReadVariance=1.0;  % Just to give it a default value, if the user does not use the parameter "ReadVariance"
-
 myFTim=[];
 DeconvMethod=Method;
 aResampling=1; 
 subSampling=1; 
+if isempty(DoStop)
+    DoStop=0;
+end
 %if ~isempty(PupilInterpolators) 
 %end
 msevalue=0;
@@ -239,7 +242,8 @@ end
 
     extraBorder(1)=0;
     if numel(borderSizes) > 1
-        extraBorder(2) = mod(s(2)+borderSizes(2),2);  % Only expand for uneven sizes along Y
+        extraBorder(1) = mod(s(1)+borderSizes(1),2);  % Expand for uneven sizes along X
+        extraBorder(2) = mod(s(2)+borderSizes(2),2);  % Expand for uneven sizes along Y
     end
     if numel(borderSizes)> 2 % && borderSizes(3)==0
         extraBorder(3)=0;
@@ -559,6 +563,9 @@ if Update(1)~='B'   % not blind
             else
                 AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
             end
+            if RegObj(35,1) % Modified Backwards OTF. Compute global variable here
+                CalcBwdOTF(RegObj(35,1));
+            end
             savedRecon=aRecon;
             [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
             aRecon=savedRecon; clear savedRecon;
@@ -695,13 +702,20 @@ end
             if NumObjIter>0
                 RegularisationParameters=RegObj;
                 AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
+                if RegObj(35,1) % Modified Backwards OTF. Compute global variable here
+                    CalcBwdOTF(RegObj(35,1));
+                end
                 [myRes,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,myRes,NumObjIter);  % Will also alter aRecon
+                if DoStop
+                    res=[];
+                    return;
+                end
                 if nargout > 3
                     evolObj =[evolObj ; myoutput.trace.fval/ NormFac];
                 end
                 if InstantUpdate
                     AssignToGlobal(ConvertInputToModel(myRes)); % Will save myRes to aRecon
-                    dipshow(3,aRecon);drawnow();
+                    % dipshow(3,aRecon);drawnow();
                 else
                     aRecon=savedRecon; % make sure it does not get overwritten
                 end
@@ -737,6 +751,10 @@ end
 %                     NormFac=IlluNorm*6e-5;
                     NormFac=IlluNorm; 
                     [VecIllu,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecIllu,NumIlluIter);
+                    if DoStop
+                    res=[];
+                        return;
+                    end
                     if nargout > 4 && ~isempty(myoutput)
                         evolIllu=[evolIllu ; myoutput.trace.fval / NormFac];
                     end
@@ -801,6 +819,10 @@ end
                 fprintf('OTF NormFac is %g, Prev. Error was %g\n',NormFacOTF,msevalue*NormFac/NormFacOld);
                 NormFacOld=NormFac;
                 [VecOTF,msevalue,moreinfo,myoutput]=DoDeconvIterations(Update,VecOTF,NumOTFIter);
+                if DoStop
+                    res=[];
+                    return;
+                end
                 if nargout > 3
                     evolOTF=[evolOTF ; myoutput.trace.fval];
                 end
@@ -847,11 +869,11 @@ fprintf('Time was %g\n', mytime)
 clear myim;
 clear DeconvMask;
 if useCuda
-    cuda_clearheap();
+%    cuda_clearheap();
     toc
     aRecon=dip_image_force(aRecon);
     toc
-    set_ones_cuda(0); set_zeros_cuda(0);   % make sure that the zeros and ones function from matlab is used.
+%    set_ones_cuda(0); set_zeros_cuda(0);   % make sure that the zeros and ones function from matlab is used.
 end
 res=aRecon;
 clear aRecon;

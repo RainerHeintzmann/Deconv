@@ -13,6 +13,9 @@ global allObj;
 global ConvertInputToModel;
 global NormFac; % To correct for the NormFactor effect on the gradient in RL
 
+CheckOutputStop = @(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin) MarkProgress(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin);
+CheckSimpleOutputStop = @(i,f)  MarkProgress([],[],i,[],f,[],[],[],[]);
+
 if NumIter <= 0
     [err,grad]=GenericErrorAndDeriv(startVec);
     eps = abs(NumIter);
@@ -55,7 +58,6 @@ if NumIter <= 0
             fprintf('\n');
         end
     end
-    global ConvertInputToModel;
     gradim=ConvertInputToModel(grad);  % writes result into the otfrep images
     mygradim=ConvertInputToModel(mygrad);  % writes result into the otfrep images
     
@@ -102,6 +104,10 @@ switch Update
     for n=1:NumIter
         %[val,mygrad]=GenericErrorAndDeriv(myRes);
         [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
+        if CheckSimpleOutputStop(n,msevalue)
+            break;
+        end
+
         % reshape(dip_image(mygrad,'single'),[size(myim,1) size(myim,2) size(myim,3)])
         myRes=myRes .* (1-mygrad/NormFac);
         if (RegularisationParameters(9,1)==0) % ForcePos is not selected
@@ -129,6 +135,10 @@ switch Update
         fullAlphaVec=[startSteps fullAlphaVec endSteps] / 1.5;
         for n=1:NumIter
             [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
+            if CheckSimpleOutputStop(n,msevalue)
+                break;
+            end
+            
             alpha=fullAlphaVec(n);
             myRes=myRes .* (1-alpha*mygrad/NormFac);
             if (RegularisationParameters(9,1)==0) % ForcePos is not selected
@@ -137,7 +147,7 @@ switch Update
             if msevalue ~= 0
                 fprintf('Iteration %d, accelerated Richardson-Lucy iteration: Val %g, alpha %g\n',n,msevalue, alpha);
             else
-                fprintf('Iteration %d, accelerated Richardson-Lucy iteration\n',n);
+                fprintf('Iteration %d, accelerated Richardson-Lucy iteration. MSE is zero!\n',n);
             end
             myoutput.trace.fval(n)=msevalue;
             if iscell(allObj)
@@ -146,12 +156,11 @@ switch Update
         end
     case 'RLR'  % RL with overrelaxation chosen as described in Bigg's paper
         Use2ndOrder=0;  % does not seem to help for longer iteration times
-
-        alpha=0.0;
+        veryOldRes=0;
         h=0.0;
         mygrad=0;oldgrad=0;
         myRes=startVec;
-        eps=1e-9;
+        eps=1e-6;
         for n=1:NumIter
             oldRes=myRes;
             if (n>2)
@@ -171,6 +180,9 @@ switch Update
             oldgrad= mygrad;
             clear mygrad;
             [msevalue,mygrad]=GenericErrorAndDeriv(myY);
+            if CheckSimpleOutputStop(n,msevalue)
+                break;
+            end
             mygrad= - mygrad.*myRes./NormFac;
             myRes = myY + mygrad;
             clear myY;
@@ -183,14 +195,14 @@ switch Update
             end
             
             if (Use2ndOrder)
-                veryOldRes=oldRes;
+                veryOldRes = oldRes;
             else
                 clear oldRes;
             end
             if msevalue ~= 0
                 fprintf('Iteration %d, accelerated Richardson-Lucy iteration: Val %g, alpha %g\n',n,msevalue, alpha);
             else
-                fprintf('Iteration %d, accelerated Richardson-Lucy iteration\n',n);
+                fprintf('Iteration %d, accelerated Richardson-Lucy iteration. MSE is zero!\n',n);
             end
             myoutput.trace.fval(n)=msevalue;
             if iscell(allObj)
@@ -214,6 +226,7 @@ switch Update
     debug=0;
     doPlot=0;
     [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
+
     %t=5e5;  % initial step size
     t=1; % 0.005;  % initial step size
     eps=1e-5;
@@ -226,6 +239,9 @@ switch Update
         d= -myRes.*mygrad;  % Direction in which the RL algorithm would decent
         gtd = mygrad'*d;    % Directional derivative
         [t,msevalue,mygrad,LSfunEvals] = WolfeLineSearch(myRes,t,d,msevalue,mygrad,gtd,c1,c2,LS_interp,LS_multi,25,progTol,debug,doPlot,1,@GenericErrorAndDeriv);
+        if CheckSimpleOutputStop(n,msevalue)
+            break;
+        end
         %mygrad=mygrad/NormFac; % To correct for the effect of NormFac on the gradient
         myRes=myRes+t*d;  % Perform the update
         if (RegularisationParameters(9,1)==0) % ForcePos is not selected
@@ -261,8 +277,8 @@ switch Update
 %options=struct('DerivativeCheck','off','Method','lbfgs','Display',1,'verbose',1,'debug',1,'notify',1,'optTol',1e-3,'progTol',1e-3,'MaxIter',NumIter,'MaxFunEvals',NumIter*2,'LS_type',1,'LS_interp',2,'LS_init',3,'t0',1e5); 
 %options=struct('DerivativeCheck','off','Method','pcg','Display',1,'verbose',1,'debug',1,'notify',1,'optTol',1e-3,'progTol',1e-3,'MaxIter',NumIter,'MaxFunEvals',NumIter*2,'LS_type',1,'LS_interp',2,'LS_init',3,'t0',1e5); 
 % options=struct('DerivativeCheck','off','Method','cg','Display',1,'verbose',1,'debug',1,'notify',1,'optTol',1e-8,'progTol',1e-8,'MaxIter',NumIter,'MaxFunEvals',NumIter*2,'LS_type',1,'LS_interp',1,'LS_init',3,'t0',1e5); 
-  options=struct('useMex',0,'doPlot',1,'cgUpdate',1,'CORR',3,'DerivativeCheck','off','Method',Update,'Display',1,'verbose',1,'debug',1,'notify',1,'optTol',1e-19,'progTol',1e-19,'MaxIter',NumIter,'MaxFunEvals',NumIter*2,'LS_type',1,'LS_interp',1,'LS_init',3,'t0',1.0); 
-    [myRes,msevalue,moreinfo,myoutput]=minFunc(@GenericErrorAndDeriv,startVec,options); % @ means: 'Function handle creation'     
+  options=struct('useMex',0,'doPlot',1,'cgUpdate',1,'CORR',3,'DerivativeCheck','off','Method',Update,'Display',1,'verbose',1,'debug',1,'notify',1,'optTol',1e-19,'progTol',1e-19,'MaxIter',NumIter,'MaxFunEvals',NumIter*2,'LS_type',1,'LS_interp',1,'LS_init',3,'t0',1.0,'outputFcn',CheckOutputStop); 
+  [myRes,msevalue,moreinfo,myoutput]=minFunc(@GenericErrorAndDeriv,startVec,options); % @ means: 'Function handle creation'     
 end
 
 %if RegularisationParameters(9,1) % && (isempty(ToEstimate) || ToEstimate==0)  % ForcePos
@@ -275,3 +291,36 @@ end
 %        myRes=convertGradToVec(myRes);
 %    end
 %end
+
+function stopped=MarkProgress(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin)
+global ProgressLoss;
+global ProgressLossFig;
+global DoStop;
+global NormFac;
+drawnow(); % also needed for the DoStop user interaction in old Matlab systems
+stopped=0;
+if ~isempty(DoStop) && DoStop 
+    stopped =1;
+    return; % stop the iterations (even in minFunc)
+end
+if isnan(f)
+    txt=sprintf('NaN appeared at iteration %d. Terminating iterations.',i);
+    msgbox(txt)
+    stopped =1;
+    return;
+end
+
+if ~isempty(ProgressLossFig) && ~isempty(ProgressLossFig)
+        if isempty(NormFac)
+            myFactor=1.0;
+        else
+            myFactor=1.0/NormFac;
+        end
+        ProgressLoss(length(ProgressLoss)+1) = myFactor * f; % current function value
+        if ~isempty(ProgressLossFig)
+            figure(ProgressLossFig)
+            plot(ProgressLoss);
+            title('Deconvolution Progress'); xlabel('Iteration no.'); ylabel('Loss Value');
+            drawnow();
+        end
+end

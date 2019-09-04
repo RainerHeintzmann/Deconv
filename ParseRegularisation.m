@@ -16,6 +16,7 @@ global realSpaceMultiplier;
 global ReadVariance;
 global RefImgX;
 global RefImgY;
+global BwdOTF;
 
 %global ComplexObj;
 %ComplexObj=0;
@@ -26,7 +27,7 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=33;
+NumMaxPar=35;
 RegMat1 = zeros(NumMaxPar,3); % Object updates
 RegMat2 = zeros(NumMaxPar,3); % Illumination updates
 RegMat3 = zeros(NumMaxPar,3); % PSF updates
@@ -325,6 +326,10 @@ for n=1:size(mycells,1)
             RefImgY=mycells{n,2}{3};  % Reference Img Y
         case 'ReadVariance'
             ReadVariance=mycells{n,2}(1);
+        case 'NoPSF'
+            RegMat1(34,1)=1;  % will disable both convolution operations in the forward and backward models
+        case 'WienerBwd'
+            RegMat1(35,1)=mycells{n,2};  % will replace the backward pass with a Wiener-filtered version (Shroff paper 2019).
         otherwise
             fprintf('Unknown Flag: %s\n',mycells{n,1});
             error('For regularisation only TV, ER, GR, CO, Kevran, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil, Illumination, IlluMask, FTData and StartImg are allowed');

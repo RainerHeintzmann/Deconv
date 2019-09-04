@@ -102,11 +102,15 @@ if ToEstimate==0  % Object is estimated, illumination and psf are assumed to be 
                 FwdModel=@FwdObjConvPSF_Slice;
                 BwdModel=@BwdResidObjConvPSF_Slice;
             else
-                FwdModel=@FwdObjConvPSF;
-                BwdModel=@BwdResidObjConvPSF;
+               FwdModel=@FwdObjConvPSF;
+               BwdModel=@BwdResidObjConvPSF;
             end
             ConvertModelToVec=@convertObjToVec;
         end
+    end
+    if RegularisationParameters(34,1)  % 'NoPSF'
+        FwdModel = @FwdIdentity;
+        BwdModel = @BwdIdentity;
     end
 elseif ToEstimate==1  % Object is estimated, illumination is assumed known, but spatially variing
      AssignToGlobal=@AssignToObject;

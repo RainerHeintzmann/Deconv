@@ -32,12 +32,13 @@ for p=1:numel(h)
     img{p}=noise(Offset+NumPhotons*mcconv/max(mcconv),'poisson');  % put some noise on the image
 end
 
+if (0)
 tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\ImgNoAbberation.tif',dip_image(uint16(img{1})),'no');
 tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\ImgAbberated.tif',dip_image(uint16(img{1})),'no');
 
 tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\PSFNoAbberration.tif',h,'yes','uint16');
 tiffwrite('Y:\MATLAB\Toolboxes\UnserLibrary\invpblib-release\Example\DeconvEx\3D\PSFAbberated.tif',ha,'yes','uint16');
-
+end
 obj=Offset+obj*NumPhotons/max(mcconv);
 %%
 if (1) % For the 3D sample

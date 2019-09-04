@@ -11,6 +11,7 @@ function resim=TiledProcessing(tilesize,bordersize,data,myarglist,aFunction,extr
 % whole dataset is too big for cuda memory), then recombine.
 % The tiles should have overlap, then be cut.
 global ringmask;
+global DoStop;
 ringmask=[];
 if nargin < 5
     aFunction=@GenericDeconvolution
@@ -31,19 +32,20 @@ if nargin < 1
 end
 
 if length(bordersize) == 1
-if numel(imgsize)==2 %2D data
-    aborder=[bordersize bordersize];
-else if numel(imgsize)==3 %3D data
-    aborder=[bordersize bordersize bordersize];
+    if numel(imgsize)==2 %2D data
+        aborder=[bordersize bordersize];
+    elseif numel(imgsize)==3 %3D data
+            aborder=[bordersize bordersize bordersize];
     end
-end
 else
     aborder=bordersize;
 end
 
 tilesize=tilesize-aborder; %for the overlap
 tilenum=ceil((imgsize-aborder)./(tilesize)); %number of tiles. Aurelie
-disableCuda()
+if exist('disableCuda','file')
+    disableCuda()
+end
 resim=newim(img,datatype(img)); %initialisation
 
 tt1=tic;
@@ -63,6 +65,11 @@ for tz=1:tilenum(3)
             end
             result=aFunction(mytile,myarglist{:}); %Perform the function on each tile
             disableCuda();
+            if isempty(result) || (~isempty(DoStop) && DoStop)
+                resim=[];
+                return;
+            end
+
             myweights = @(sz,d,left,right) reorient(cat(1,1-cos((ramp(left,1,'freq')+0.5)*pi/2).^2,ramp(sz-left-right,1)*0+1.0,cos((ramp(right,1,'freq')+0.5)*pi/2).^2),d);
             xL = (tx>1) * aborder(1);
             xH = (tx<tilenum(1)) * aborder(1);
