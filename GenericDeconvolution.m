@@ -125,6 +125,7 @@ global RefObject_SSQ;  % For checking the progress to the ground truth during it
 global RefObject_SAbs; % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_SSQ2;  % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_SAbs2; % For checking the progress to the ground truth during iterations.  RH 2017
+global noFFT;  % This is a hack to prevent the fft as this is already an OTF
 
 %global ComplexObj;    % Can the object to estimate be complex valued?
 %global IntensityData;  % Is the supplied data the abs square of the object to estimate?
@@ -563,8 +564,8 @@ if Update(1)~='B'   % not blind
             else
                 AssignFunctions(RegularisationParameters,1); % To estimate is Blind Object Step
             end
-            if RegObj(35,1) % Modified Backwards OTF. Compute global variable here
-                CalcBwdOTF(RegObj(35,1));
+            if RegObj(35,1) % Modified Backwards OTF using the Wiener-Butterworth filter. Compute global variable here
+                CalcBwdOTF(RegObj(35,:));
             end
             savedRecon=aRecon;
             [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
@@ -714,7 +715,7 @@ end
                     evolObj =[evolObj ; myoutput.trace.fval/ NormFac];
                 end
                 if InstantUpdate
-                    AssignToGlobal(ConvertInputToModel(myRes)); % Will save myRes to aRecon
+                    AssignToGlobal(ConvertInputToModel(myRes)); % Will apply preForwardModels to myRes and save this to aRecon
                     % dipshow(3,aRecon);drawnow();
                 else
                     aRecon=savedRecon; % make sure it does not get overwritten
@@ -785,19 +786,19 @@ end
                     if (1) % isempty(OTFmask) || isempty(OTFmask{v}) % creat OTF masks from ideal (unaberrated) OTF if necessary
                         OTFmask=cell(numel(otfrep),1);
                         for no=1:numel(otfrep)
-                            absotf=abs(otfrep{no});
+                            absotf=gaussf(abs(otfrep{no}),1.0);  % to smooth out the zeros a little
                         	OTFmask{no}=absotf>(max(absotf)/10000);
                         end
                     end
                     allotf=cat(4,otfrep{:});
                     % flag below is noFFT and allows an OTF instead of PSF to be used here.
-                    global noFFT;  % This is a hack to prevent the fft as this is already an OTF
-                    noFFT=1;
+                    noFFT=1;  % This is a hack to prevent the fft as this is already an OTF
                     if RegularisationParameters(14,1)  % This means the 2D pupil ist really what is estimated
                         mysize=size(PupilInterpolators.indexList2D,2);
                         VecOTF=ones(2*mysize,1)/sqrt(2);  %/mysize
                         ResOTF=ConvertInputToModel(VecOTF);
                         VecOTF=VecOTF/sqrt(sum(rift(ResOTF{1})));  % To force the PSF to have an integral of one
+                        clear('ResOTF'); % not used any more
 %                        VecOTF=double(VecOTF(:));
                     else  % estimate the 3D OTF voxels
                         VecOTF=ConvertModelToVec(allotf);    % converts the OTF (not PSF!) dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
@@ -805,7 +806,7 @@ end
                             VecOTF=VecOTF{1};
                         end
                     end
-                    startVec=VecOTF;
+                    startVec=VecOTF; 
                     noFFT=0;
                     if (RegularisationParameters(18,1) <= 0) % can also be if (1)
                         NormFac=1;

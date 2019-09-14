@@ -13,7 +13,7 @@ global allObj;
 global ConvertInputToModel;
 global NormFac; % To correct for the NormFactor effect on the gradient in RL
 
-CheckOutputStop = @(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin) MarkProgress(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin);
+CheckOutputStop = @(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin) MarkProgress(x,name,i,funEvals,f/prod(size(x)),t,gtd,g,d,optCond,varargin);
 CheckSimpleOutputStop = @(i,f)  MarkProgress([],[],i,[],f,[],[],[],[]);
 
 if NumIter <= 0
@@ -104,7 +104,7 @@ switch Update
     for n=1:NumIter
         %[val,mygrad]=GenericErrorAndDeriv(myRes);
         [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
-        if CheckSimpleOutputStop(n,msevalue)
+        if CheckSimpleOutputStop(n,msevalue / prod(size(myRes)))
             break;
         end
 
@@ -135,7 +135,7 @@ switch Update
         fullAlphaVec=[startSteps fullAlphaVec endSteps] / 1.5;
         for n=1:NumIter
             [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
-            if CheckSimpleOutputStop(n,msevalue)
+            if CheckSimpleOutputStop(n,msevalue/ prod(size(myRes)))
                 break;
             end
             
@@ -180,7 +180,7 @@ switch Update
             oldgrad= mygrad;
             clear mygrad;
             [msevalue,mygrad]=GenericErrorAndDeriv(myY);
-            if CheckSimpleOutputStop(n,msevalue)
+            if CheckSimpleOutputStop(n,msevalue/ prod(size(myRes)))
                 break;
             end
             mygrad= - mygrad.*myRes./NormFac;
@@ -239,7 +239,7 @@ switch Update
         d= -myRes.*mygrad;  % Direction in which the RL algorithm would decent
         gtd = mygrad'*d;    % Directional derivative
         [t,msevalue,mygrad,LSfunEvals] = WolfeLineSearch(myRes,t,d,msevalue,mygrad,gtd,c1,c2,LS_interp,LS_multi,25,progTol,debug,doPlot,1,@GenericErrorAndDeriv);
-        if CheckSimpleOutputStop(n,msevalue)
+        if CheckSimpleOutputStop(n,msevalue/ prod(size(myRes)))
             break;
         end
         %mygrad=mygrad/NormFac; % To correct for the effect of NormFac on the gradient
@@ -319,7 +319,7 @@ if ~isempty(ProgressLossFig) && ~isempty(ProgressLossFig)
         ProgressLoss(length(ProgressLoss)+1) = myFactor * f; % current function value
         if ~isempty(ProgressLossFig)
             figure(ProgressLossFig)
-            plot(ProgressLoss);
+            plot(ProgressLoss/ProgressLoss(1),'bo-');
             title('Deconvolution Progress'); xlabel('Iteration no.'); ylabel('Loss Value');
             drawnow();
         end

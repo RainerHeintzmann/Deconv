@@ -329,7 +329,8 @@ for n=1:size(mycells,1)
         case 'NoPSF'
             RegMat1(34,1)=1;  % will disable both convolution operations in the forward and backward models
         case 'WienerBwd'
-            RegMat1(35,1)=mycells{n,2};  % will replace the backward pass with a Wiener-filtered version (Shroff paper 2019).
+            paramVec = mycells{n,2};
+            RegMat1(35,1:length(paramVec))=paramVec;  % will replace the backward pass with a Wiener-filtered version (Shroff paper 2019).
         otherwise
             fprintf('Unknown Flag: %s\n',mycells{n,1});
             error('For regularisation only TV, ER, GR, CO, Kevran, Complex, IntensityData, ForcePos, ForcePhase, NormMeasSum, NormMeasSumSqr, NormFac, MaxTestDim, NegSqr, Reuse, Resample, Bg, ProjPupil, Illumination, IlluMask, FTData and StartImg are allowed');

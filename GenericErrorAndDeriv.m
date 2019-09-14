@@ -50,6 +50,7 @@ global measSumSqr;
 global useFTComparison;  % only active if Ptychography updates are used in this round
 global Recons;  % to make it accessible from the outside
 global DeconvViewer; % A java viewer in which to show the progress continuously.
+global RegObjVal; % stores the object regularization, such that it is also available as a constant for the energy term during PSF estimation
 
 %delta= 100; % Weight for the negativtiy penalty
 %delta= 1000; % Weight for the negativtiy penalty
@@ -78,7 +79,7 @@ thegrad=AssignToGlobal(ConvertInputToModel(myinput)); % Will change either aReco
 % It returns an empty gradient vector (if asked to do so)
 % It also accounts for the ForcePositiv constraint
 
-if ToEstimate==2
+if ToEstimate==2  % PSF/OTF estimation
     thegrad=repmat(thegrad,[1 1 1 numel(otfrep)]);
 end
 
@@ -92,6 +93,7 @@ prevSumCondGradIdx=0;
 
 if isempty(ToEstimate) || ToEstimate==0  % Object estimate is only regularised once even for multi-view deconv
     [myReg,myRegGrad]=Regularize(aRecon,BetaVals);  % Object regularisation is applied only once!
+    RegObjVal=myReg;  % stores this for potential use during PSF optimization
     err=err+myReg;    % was cleared before the for-loop
     % myRegGrad=BwdExtraModel(myRegGrad,1);  % The background model is applied after the for loop for all instances    
     thegrad=thegrad+ myRegGrad;
@@ -103,6 +105,7 @@ if isempty(ToEstimate) || ToEstimate==0  % Object estimate is only regularised o
                 DeconvViewer = view5d(aRecon); 
             else
                 try
+                    DeconvViewer.toFront();
                     view5d(aRecon,0,'replaceElement',DeconvViewer,0);
                     DeconvViewer.ProcessKeyMainWindow('t');
                     DeconvViewer.UpdatePanels()
@@ -111,6 +114,10 @@ if isempty(ToEstimate) || ToEstimate==0  % Object estimate is only regularised o
                 end
             end
         end
+    end
+else
+    if ~isempty(RegObjVal)
+        err=err+RegObjVal;  % for potential use during PSF optimization. In this case there is no gradient!
     end
 end
 
@@ -186,7 +193,7 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
             myIllum=1;
         end
 
-        if RegularisationParameters(35,1)
+        if RegularisationParameters(35,1) && ToEstimate~=2
             BwdOtf = BwdOTF{OTFNum};
         else
             BwdOtf = myOtf;
