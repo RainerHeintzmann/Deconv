@@ -47,6 +47,7 @@ end
 
 FwdModel={};BwdModel={};ConvertInputToModel={};ConvertModelToVec={};ConvertGradToVec={};
 my_sumcond={};
+BwdExtraModel=@(grad,viewNum)NoChange(grad,viewNum);
 if ToEstimate==0  % Object is estimated, illumination and psf are assumed to be known
     AssignToGlobal=@AssignToObject;
     if ~isreal(myim{1}) || ComplexPSF % data is of type complex or the "IntensityData" flag is activated
@@ -212,11 +213,22 @@ elseif ToEstimate==2  % object and psf are assumed to be known, and illumination
 elseif ToEstimate==3  % object and illumination are assumed to be known, and otf is estimated
     if RegularisationParameters(14,1) % case 'ProjPupil' where only the 2D pupil is estimated
         AssignToGlobal=@AssignToOTF;
-        ConvertInputToModel=@(vec)convertPupilVecToOTF(vec,RegularisationParameters(20,1));  % the Regularistion parameter determines whether to apply a multiplication with a global (Gaussian) mask
         FwdModel=@FwdObjConvPSF;   % identical for object and PSF (already converted to OTF)
         BwdModel=@BwdResidPSFConvObj;  % has to convolve with aRecon
-        ConvertModelToVec=@(vec)convertPSFToPupilVec(vec,RegularisationParameters(20,1));  % this conversion is identical for object or PSF
-    else
+        if RegularisationParameters(15,1) % ForcePhase, Forces object to be a phase only object
+            ConvertInputToModel=@(vec)convertPupilVecToOTF(vec,RegularisationParameters(20,1));  % the Regularistion parameter determines whether to apply a multiplication with a global (Gaussian) mask
+            ConvertInputToModel=@(vec) JoinFunctions(vec,1,{@PhaseVecToPupilVec,ConvertInputToModel},[1,1]);  % first convert to OTF or Pupil and then apply the phase-only magic
+            ConvertModelToVec=@(vec)convertPSFToPupilPhaseVec(vec,RegularisationParameters(20,1),0);   % accounts for the phase-only part here
+            ConvertGradToVec=@(vec)convertPSFToPupilPhaseVec(vec,RegularisationParameters(20,1),1);   % accounts for the phase-only part here
+            % ConvertModelToVec=@(vec) JoinFunctions(vec,1,{ConvertModelToVec,@ApplyPhaseModelBwd},[1,1]);  % first convert to OTF or Pupil and then apply the phase-only magic
+        else
+            ConvertInputToModel=@(vec)convertPupilVecToOTF(vec,RegularisationParameters(20,1));  % the Regularistion parameter determines whether to apply a multiplication with a global (Gaussian) mask
+            ConvertModelToVec=@(vec)convertPSFToPupilVec(vec,RegularisationParameters(20,1));  
+        end
+    else % The 3D OTF is estimated inside a mask. Phase-only makes no sense!
+        if RegularisationParameters(15,1) % ForcePhase, Forces object to be a phase only object
+            error('Phase-only makes no sense here! Use 2D pupils instead.')
+        end
         AssignToGlobal=@AssignToOTF;
         ConvertInputToModel=@convertVecToOTF;  % fills a volume in Fourier-space
         FwdModel=@FwdObjConvPSF;   % identical for object and PSF (already converted to OTF)
@@ -230,14 +242,23 @@ if isempty(ConvertGradToVec);
     ConvertGradToVec=ConvertModelToVec;    
 end
 
-BwdExtraModel=@(grad,viewNum)NoChange(grad,viewNum);
-
 if RegularisationParameters(15,1) % ForcePhase, Forces object to be a phase only object
-    ConvertInputToModel=@(vec)ApplyPhaseModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
     % ConvertGradToVec=@(grad)ApplyPhaseModelGrad(grad,ConvertGradToVec);
     % BwdModel=@(grad)ApplyPhaseModelBwd(grad,viewNum,BwdModel);
-    BwdExtraModel=@(grad,viewNum)ApplyPhaseModelBwd(grad,viewNum,BwdExtraModel);
-    ConvertModelToVec=@(model)ApplyInversePhaseModel(model,ConvertModelToVec);
+    if ToEstimate == 3
+        % This is already taken care of above!
+        % ConvertInputToModel=@(vec) JoinFunctions(vec,1,{ApplyPhaseModel,ConvertInputToModel},[1,1]);  % first convert to OTF or Pupil and then apply the phase-only magic
+        % ConvertInputToModel=@(vec)ApplyPhaseModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
+        % BwdExtraModel=@(grad,viewNum)JoinFunctions(grad,viewNum,{ConvertGradToVec,BwdExtraModel},[1,2]);  % first convert to OTF or Pupil and then apply the phase-only magic
+        % ConvertGradToVec=@convertObjToVec;  % just use the value as is, since the conversion was already performed above.
+        % ApplyPhaseModelBwd2 = @(model) ApplyPhaseModelBwd(model,1,ConvertGradToVec)
+        % ConvertGradToVec=@(model) ConvertGradToVec(model,DoNothing);  % needs to be applied after the conversio to the pupil!
+        % ConvertGradToVec=@(model)ApplyPhaseModelBwd(model,1,ConvertGradToVec);  % needs to be applied after the conversio to the pupil!
+    else
+        ConvertInputToModel=@(vec)ApplyPhaseModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
+        BwdExtraModel=@(grad,viewNum)ApplyPhaseModelBwd(grad,viewNum,BwdExtraModel);
+        ConvertModelToVec=@(model)ApplyInversePhaseModel(model,ConvertModelToVec);
+    end
     if RegularisationParameters(9,1)
         error('Please decide whether you want to reconstruct a phase-only (ForcePhase-) or a nonnegativ (ForcePos-) object');
     end

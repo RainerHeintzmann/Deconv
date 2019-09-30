@@ -1,9 +1,11 @@
 function res=ApplyPhaseModel(vec,afkt)
 % global mytmp; %Variable modified in AmpMaskToIllu. Aurelie 03.03.2014
 % mytmp={}; %clear in case of further occurances. Aurelie 03.03.2014
-
-res=afkt(vec);
-
+if nargin > 1
+   res=afkt(vec);
+else
+   res=vec;
+end
 global savedPhaseInput;
 if ~iscell(res)
     savedPhaseInput={res};

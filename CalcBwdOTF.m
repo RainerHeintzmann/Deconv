@@ -31,6 +31,11 @@ for n=1:length(otfrep)
     else
         OTFMask = aOTF > RelBorder;
         ProjX = sum(OTFMask,[],[2,3]); ProjX = ProjX / max(abs(ProjX));ProjY = sum(OTFMask,[],[1,3]); ProjY = ProjY / max(abs(ProjY));ProjZ = sum(OTFMask,[],[1,2]); ProjZ = ProjZ / max(abs(ProjZ));
+        if isa(ProjX,'cuda')
+            ProjX=double_force(ProjX);
+            ProjY=double_force(ProjY);
+            ProjZ=double_force(ProjZ);
+        end
         XPos = find(~ProjX,1);YPos = find(~ProjY,1);ZPos = find(~ProjZ,1);
     end
     CutOff = [XPos,YPos,ZPos];  % Abbe Radius.  AbbeMaxRadiusFromPSF(ImageParam,PSFParam);

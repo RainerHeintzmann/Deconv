@@ -20,7 +20,8 @@ for v= 1:numel(otfrep)  % last pattern will be generated from sum-requirement
             myinput=complex(myinput(1:end/2), myinput(end/2+1:end)); % pack two reals to one complex
         end
         DataToRead=sum(OTFmask{v});
-        otfrep{v}=AmpMaskToOTF(OTFmask{v},myinput(1+TotalReadData:TotalReadData+DataToRead));
+        % otfrep{v}=AmpMaskToOTF(OTFmask{v},myinput(1+TotalReadData:TotalReadData+DataToRead));
+        otfrep{v}(OTFmask{v})=myinput(1+TotalReadData:TotalReadData+DataToRead);  % replace only the masked part and leave rest untouched.
         TotalReadData=TotalReadData+DataToRead;
         %if ~equalsizes(DataSize,size(otfrep{v}))
         %    error('Datasize unequal to tofill size. This should not happen');

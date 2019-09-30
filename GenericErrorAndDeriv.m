@@ -49,8 +49,14 @@ global measSum;
 global measSumSqr;
 global useFTComparison;  % only active if Ptychography updates are used in this round
 global Recons;  % to make it accessible from the outside
-global DeconvViewer; % A java viewer in which to show the progress continuously.
 global RegObjVal; % stores the object regularization, such that it is also available as a constant for the energy term during PSF estimation
+global savedATF; % A java viewer in which to show the Deconv progress continuously.
+
+global DeconvViewer; % A java viewer in which to show the Deconv progress continuously.
+global IllumViewer; % A java viewer in which to show the Illumination estimation progress continuously.
+global PSFViewer; % A java viewer in which to show the PSF progress continuously.
+global OTFViewer; % A java viewer in which to show the OTF progress continuously.
+global ATFViewer; % A java viewer in which to show the pupil progress continuously.
 
 %delta= 100; % Weight for the negativtiy penalty
 %delta= 1000; % Weight for the negativtiy penalty
@@ -93,31 +99,16 @@ prevSumCondGradIdx=0;
 
 if isempty(ToEstimate) || ToEstimate==0  % Object estimate is only regularised once even for multi-view deconv
     [myReg,myRegGrad]=Regularize(aRecon,BetaVals);  % Object regularisation is applied only once!
-    RegObjVal=myReg;  % stores this for potential use during PSF optimization
+    RegObjVal=myReg;  % stores this for potential use during PSF optimization. WIHTOUT NORMFAC
     err=err+myReg;    % was cleared before the for-loop
     % myRegGrad=BwdExtraModel(myRegGrad,1);  % The background model is applied after the for loop for all instances    
     thegrad=thegrad+ myRegGrad;
     if RegularisationParameters(13,1)
-        if isempty(DeconvViewer)
-            dipshow(3,aRecon);drawnow();
-        else
-            if DeconvViewer == 0
-                DeconvViewer = view5d(aRecon); 
-            else
-                try
-                    DeconvViewer.toFront();
-                    view5d(aRecon,0,'replaceElement',DeconvViewer,0);
-                    DeconvViewer.ProcessKeyMainWindow('t');
-                    DeconvViewer.UpdatePanels()
-                catch
-                    dipshow(3,aRecon);drawnow();
-                end
-            end
-        end
+        DeconvViewer=LiveView(DeconvViewer,aRecon);
     end
 else
     if ~isempty(RegObjVal)
-        err=err+RegObjVal;  % for potential use during PSF optimization. In this case there is no gradient!
+        err=err+RegObjVal;  % for potential use during PSF optimization. In this case there is no gradient! WITHOUT NormFac!
     end
 end
 
@@ -233,11 +224,11 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
     % The terms below are only dependend on the reconstruction but not on the data. They need to be calculated onyl once for all views.
     % Total error term (including regularisation):
     if ~isempty(ToEstimate) && ToEstimate>0  % illumination or OTF estimate, once for each view
-        if RegularisationParameters(13,1)
-            dipshow(3,myIllum);drawnow();
-        end
         if ToEstimate==1
             [myReg,myRegGrad]=Regularize(myIllum,BetaVals);
+            if RegularisationParameters(13,1)
+                IllumViewer=LiveView(IllumViewer,myIllum);
+            end
         else
             if NeedsRegularisation()
                 mypsf=ifftshift(rift(myOtf));
@@ -264,8 +255,17 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
         
         err=err+myReg;
     end
-    
+
 end  % viewNum
+if ToEstimate == 2 && RegularisationParameters(13,1)
+    allotf=cat(4,otfrep{:});
+    PSFViewer=LiveView(PSFViewer,ifftshift(rift3d(allotf)));
+    OTFViewer=LiveView(OTFViewer,allotf);
+    if ~isempty(savedATF)
+        ATFViewer=LiveView(ATFViewer,cat(1,savedATF(:,:,:,0),savedATF(:,:,:,1),savedATF(:,:,:,2)));
+    end
+end
+
 if isempty(ToEstimate) || ToEstimate==0  % object estimate has to be summed for all views
    thegrad = BwdExtraModel(thegrad,1);
 end

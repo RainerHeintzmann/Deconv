@@ -13,8 +13,8 @@ global allObj;
 global ConvertInputToModel;
 global NormFac; % To correct for the NormFactor effect on the gradient in RL
 
-CheckOutputStop = @(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin) MarkProgress(x,name,i,funEvals,f/prod(size(x)),t,gtd,g,d,optCond,varargin);
-CheckSimpleOutputStop = @(i,f)  MarkProgress([],[],i,[],f,[],[],[],[]);
+CheckOutputStop = @(x,name,i,funEvals,f,t,gtd,g,d,optCond,varargin) MarkProgress(x,name,i+1,funEvals,f,t,gtd,g,d,optCond,varargin);
+CheckSimpleOutputStop = @(x,i,f)  MarkProgress(x,[],i,[],f,[],[],[],[]);
 
 if NumIter <= 0
     [err,grad]=GenericErrorAndDeriv(startVec);
@@ -104,7 +104,7 @@ switch Update
     for n=1:NumIter
         %[val,mygrad]=GenericErrorAndDeriv(myRes);
         [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
-        if CheckSimpleOutputStop(n,msevalue / prod(size(myRes)))
+        if CheckSimpleOutputStop(myRes,n,msevalue)
             break;
         end
 
@@ -135,7 +135,7 @@ switch Update
         fullAlphaVec=[startSteps fullAlphaVec endSteps] / 1.5;
         for n=1:NumIter
             [msevalue,mygrad]=GenericErrorAndDeriv(myRes);
-            if CheckSimpleOutputStop(n,msevalue/ prod(size(myRes)))
+            if CheckSimpleOutputStop(myRes,n,msevalue)
                 break;
             end
             
@@ -180,7 +180,7 @@ switch Update
             oldgrad= mygrad;
             clear mygrad;
             [msevalue,mygrad]=GenericErrorAndDeriv(myY);
-            if CheckSimpleOutputStop(n,msevalue/ prod(size(myRes)))
+            if CheckSimpleOutputStop(myY,n,msevalue)
                 break;
             end
             mygrad= - mygrad.*myRes./NormFac;
@@ -239,7 +239,7 @@ switch Update
         d= -myRes.*mygrad;  % Direction in which the RL algorithm would decent
         gtd = mygrad'*d;    % Directional derivative
         [t,msevalue,mygrad,LSfunEvals] = WolfeLineSearch(myRes,t,d,msevalue,mygrad,gtd,c1,c2,LS_interp,LS_multi,25,progTol,debug,doPlot,1,@GenericErrorAndDeriv);
-        if CheckSimpleOutputStop(n,msevalue/ prod(size(myRes)))
+        if CheckSimpleOutputStop(myRes,n,msevalue)
             break;
         end
         %mygrad=mygrad/NormFac; % To correct for the effect of NormFac on the gradient
@@ -297,6 +297,18 @@ global ProgressLoss;
 global ProgressLossFig;
 global DoStop;
 global NormFac;
+global ToEstimate;
+global Recons;
+global ConvertInputToModel;
+global DeconvMask;  % since only this area is finally returned..
+
+global RefObject;      % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_SSQ;  % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_SAbs; % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_SSQ2;  % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_SAbs2; % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_NCC; % normalized Cross correlation
+
 drawnow(); % also needed for the DoStop user interaction in old Matlab systems
 stopped=0;
 if ~isempty(DoStop) && DoStop 
@@ -310,17 +322,57 @@ if isnan(f)
     return;
 end
 
+if (size(RefObject,2)==1)
+    RefObject=ConvertInputToModel(RefObject);
+end
+x=ConvertInputToModel(x);
+if ~isempty(DeconvMask)
+    x=x(DeconvMask);
+    y=RefObject(DeconvMask);
+else
+    x=x(:);
+    y=RefObject(:);
+end
+
+% Protocol the comparison to the ground truth if wanted
+if ~isempty(RefObject) && ~isempty(x)
+    tmp1=abs(y - x);
+    RefObject_SSQ(i)=sqrt(mean(mean( tmp1.^2)));
+    RefObject_SAbs(i)=mean(mean( tmp1));
+    tmp2=abs(y.^2 - x.^2);
+    RefObject_SSQ2(i)=sqrt(mean(mean( tmp2.^2)));
+    RefObject_SAbs2(i)=mean(mean( tmp2));
+
+    RefObject_NCC(i)=mean((y-mean(y)).*(x-mean(x)))/sqrt(var(y).*var(x));
+    clear tmp1;clear tmp2;
+end
+
 if ~isempty(ProgressLossFig) && ~isempty(ProgressLossFig)
         if isempty(NormFac)
-            myFactor=1.0;
+            myFactor=1.0 / prod(size(Recons));
         else
-            myFactor=1.0/NormFac;
+            myFactor=1.0/NormFac/ prod(size(Recons));
         end
         ProgressLoss(length(ProgressLoss)+1) = myFactor * f; % current function value
         if ~isempty(ProgressLossFig)
             figure(ProgressLossFig)
-            plot(ProgressLoss/ProgressLoss(1),'bo-');
+            switch ToEstimate
+                case 0
+                    LineStyle = 'bo-';
+                case 1
+                    LineStyle = 'mo-';
+                case 2
+                    LineStyle = 'ro-';
+            end
+            lP = length(ProgressLoss);
+            if lP == 1
+                plot(lP,ProgressLoss(end),LineStyle); % /ProgressLoss(1)
+            else
+                plot(lP-1:lP,ProgressLoss(end-1:end),LineStyle); % /ProgressLoss(1)
+            end
+            hold on;
             title('Deconvolution Progress'); xlabel('Iteration no.'); ylabel('Loss Value');
             drawnow();
         end
 end
+

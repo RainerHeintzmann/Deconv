@@ -16,7 +16,6 @@ global realSpaceMultiplier;
 global ReadVariance;
 global RefImgX;
 global RefImgY;
-global BwdOTF;
 
 %global ComplexObj;
 %ComplexObj=0;
@@ -28,9 +27,9 @@ if nargin<2
 end
 
 NumMaxPar=35;
-RegMat1 = zeros(NumMaxPar,3); % Object updates
-RegMat2 = zeros(NumMaxPar,3); % Illumination updates
-RegMat3 = zeros(NumMaxPar,3); % PSF updates
+RegMat1 = zeros(NumMaxPar,4); % Object updates
+RegMat2 = zeros(NumMaxPar,4); % Illumination updates
+RegMat3 = zeros(NumMaxPar,4); % PSF updates
 
 DefaultEpsR = 1.0;   % 0.1 is still too small and generates "hot" pixels
 
@@ -125,16 +124,38 @@ for n=1:size(mycells,1)
         case 'RefObject'  % Reference Object for the Deconv results to be compared to
             RefObject=mycells{n,2};
         case 'StartImg'
-            if ~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda'))
-                error('When submitting a starting image for object or illumination, it has to be a dip_image or cuda type');
+            StartImg=mycells{n,2};
+            if iscell(StartImg)  % The user chooses between different means to calculate the start image
+            switch StartImg{1}
+                case 'mean' % mean value
+                    RegMat1(6,1)=1;  % Mode 
+                case 'PSF' % PSF filtered
+                    RegMat1(6,1)=2;  % Mode 
+                case 'wiener' % wiener filter
+                    RegMat1(6,1)=3;  % Mode 
+                    RegMat1(6,2)=mycells{n,2}{2};  % Alpha
+                case 'WB' % Wiener-Butterworth filter
+                    RegMat1(6,1)=4;  % Mode 
+                    RegMat1(6,2)=mycells{n,2}{2};  % Alpha
+                    RegMat1(6,3)=mycells{n,2}{3};  % Beta
+                    RegMat1(6,4)=mycells{n,2}{4};  % Order
+                case 'meas'  % Measured data (not recommended)
+                    RegMat1(6,1)=5;  % Mode 
+                otherwise
+                    error('unknown init agrument string choice')
             end
-            RegMat1(6,1)=1;  % Reuse what is written into aRecon below
+            res=[];
+            elseif ~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda'))
+                error('When submitting a starting image for object or illumination, it has to be a dip_image or cuda type');
+            else
+                RegMat1(6,1)=1;  % Reuse what is written into aRecon below
+            end
             if toReg==0
-                aRecon=mycells{n,2};
+                aRecon=res;
             elseif toReg==1
-                myillu=mycells{n,2};
+                myillu=res;
             elseif toReg==2
-                myotfs=mycells{n,2};
+                myotfs=res;
             end
         case 'Illumination'
             

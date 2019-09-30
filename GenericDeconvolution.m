@@ -28,7 +28,7 @@
 %       'NormMeasSumSqr',[] : Normalizes the result of the FwdModel to the sqrt of the sum of squares of all measured values befor calculating the error and residuum
 %       'NormFac',[NF] : Allows to set the NormFactors (rather than automatic determination. Negative values mean automatic determination for the respective estimation steps.
 %       'Reuse' : The algorithm will use a previously caculated result (stored in the global variable aRecon) and continue from there
-%       'StartImg', anImage : Uses this image as a starting object for the iterations
+%       'StartImg', anImage : Uses this image as a starting object for the iterations. Can also be a cell array {'mean'},{'meas'},{'PSF'},{'Wiener',alpha},{'WB',order,alpha,beta} to indicate that the initialization image is computed as indicated.
 %       'Illumination', anIllumination : Uses the illuminations as given 
 %       'IlluMask', aMask : Allows the user to provide an illumination mask
 %       'MaxTestDim',  for the Gradien testing (use negative iterations number, which amounts to the epsilon for the numeric steps!). How many directions to test in real before going to imaginary.
@@ -125,6 +125,7 @@ global RefObject_SSQ;  % For checking the progress to the ground truth during it
 global RefObject_SAbs; % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_SSQ2;  % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_SAbs2; % For checking the progress to the ground truth during iterations.  RH 2017
+global RefObject_NCC; % For checking the progress to the ground truth during iterations.  RH 2017
 global noFFT;  % This is a hack to prevent the fft as this is already an OTF
 
 %global ComplexObj;    % Can the object to estimate be complex valued?
@@ -136,7 +137,12 @@ global PupilInterpolators;  % used for estimating ATFs in blind deconvolution
 global measSumsSqr;
 global measSums;
 global allObj;
+global savedATF;
 global ReadVariance;
+global AmpFactor; % to scale PSF amplitues if needed.
+global BwdOTF;
+
+AmpFactor = 1.0;
 ReadVariance=1.0;  % Just to give it a default value, if the user does not use the parameter "ReadVariance"
 myFTim=[];
 DeconvMethod=Method;
@@ -302,6 +308,7 @@ end
 %% Parse the regularisation parameters.  Needs to be before aResampling is used below
 [RegObj,RegIllu,RegOTF]=ParseRegularisation(Regularisation);  % Also sets global variable such as ForcePos and ComplexObj
 RegularisationParameters=RegObj;
+RefObject = ConditionalCudaConvert(RefObject,useCuda);
 
 %% Extend the border
 NewSize=floor(OrigSize+borderSizes); % Will also be needed for object starting vector
@@ -334,6 +341,9 @@ if norm(borderSizes) > 0 || any(subSampling~=1)
             fprintf('%g,',NewDataSize);
             fprintf('] \n');
             DeconvMask=extract(myim{1}*0>-1,NewDataSize);  % Place zero outside and one at the old data region
+            if ~isempty(RefObject)
+                RefObject = extract(RefObject,NewDataSize);
+            end
             for v=1:length(myim)  % insert empty information
                 myim{v}=extract(myim{v},NewDataSize);  % Overwrite the old data
                 if ~isempty(psf{1}) && (v<=numel(psf)) && norm(size(psf{v})-NewSize)~=0  % Not NewObjSize since the Resampling does not affect the OTF
@@ -405,10 +415,10 @@ for v=1:numel(psf)
     end
 end
 for v=1:length(psf)
-    if ~ComplexPSF  % complex valued PSFs are often 0 on average. It is thus normalized such that it's abssqr has a sum of one
-        psf{v}=psf{v}/mysum;  % Forces the PSF to be normalized (over all sup-PSFs)
+    if ~ComplexPSF  % complex valued PSFs are. often 0 on average. It is thus normalized such that it's abssqr has a sum of one
+        psf{v}=psf{v}./mysum;  % Forces the PSF to be normalized (over all sup-PSFs)
     else
-        psf{v}=psf{v}/sqrt(mysum);  % Forces the PSF to be normalized 
+        psf{v}=psf{v}./sqrt(mysum);  % Forces the PSF to be normalized 
     end
 end
 clear mysum;
@@ -445,6 +455,8 @@ end
 % end
 
 mysum=0;
+DeconvMask = ConditionalCudaConvert(DeconvMask,useCuda);
+
 if ~isempty(DeconvMask)
     myDivisor=sum(DeconvMask,DeconvMask);
 else
@@ -480,6 +492,9 @@ mymean=mysum/length(myim);  % Force it to be real
             % startVec=NumViews*(double(repmat(1e-3,[1 prod(svecsize)])))';  % For now, just start with a guess of one, so the amplitude algorithm does not screw up
         else
             startVec=startVec+mymean-RegObj(12,1);  % account for the background value in the object estimate
+            if RegObj(12,1) > mymean
+                error('The background estimate is bigger than the mean value of the data. Something is wrong here! Aborting.');
+            end
             % startVec=NumViews*(double(repmat(mymean,[1 prod(svecsize)])))';
         end
     else
@@ -550,6 +565,7 @@ if ~isempty(RefObject)
             RefObject_SAbs=[]; % For checking the progress to the ground truth during iterations.  
             RefObject_SSQ2=[];  % For checking the progress to the ground truth during iterations. 
             RefObject_SAbs2=[]; % For checking the progress to the ground truth during iterations. 
+            RefObject_NCC=[]; % For checking the progress to the ground truth during iterations. 
         % end
 end
 
@@ -578,7 +594,50 @@ if Update(1)~='B'   % not blind
         NormFac=RegularisationParameters(18,1); %0.06;  % 1e-6
     end
     fprintf('\nObject NormFac is %g\n',NormFac);
-    if RegObj(6,1)  % means reuse previous result
+    if RegObj(6,1)  % means reuse previous result or use the starting image or calculate it
+        myReg = RegObj(6,1);
+        if myReg > 1  % The user chooses between different means to calculate the start image
+            meas = myim{1};
+            if iscell(otfrep)
+                OTF = otfrep{1};
+            else
+                OTF = otfrep;
+            end
+            switch myReg
+                case 1 % mean value
+                    res=meas.*0.0+mean(meas);
+                case 2 % PSF filtered
+                    res=rift(rft(meas) .* conj(OTF));
+                    res = res/mean(res)*mean(meas);
+                case 3 % wiener filter
+                    NumAlpha = RegObj(6,2);
+                    OTF = OTF /max(abs(OTF));
+                    res=rift(rft(meas).*conj(OTF)/(abssqr(OTF)+ NumAlpha));
+                    res(res < 0.1) = 0.1;
+                    res = res/mean(res)*mean(meas);
+                case 4 % Wiener-Butterworth filter
+                    NumAlpha = RegObj(6,2);
+                    NumBeta = RegObj(6,3);
+                    NumOrder = RegObj(6,4);
+                    otfrepOld = otfrep;
+                    otfrep = {OTF};
+                    CalcBwdOTF([NumOrder, NumAlpha, NumBeta]);
+                    WB = conj(BwdOTF{1});
+                    res=rift(rft(meas) .* WB);
+                    res(res < 0.1) = 0.1;
+                    otfrep = otfrepOld;
+                    res = res/mean(res)*mean(meas);
+                case 5  % Measured data (not recommended)
+                    res=meas;
+                    res(res < 0.1) = 0.1;
+                otherwise
+                    error('unknown init value choice')
+            end
+            clear OTF;
+            clear meas;
+            aRecon = res;
+            clear res;
+        end
         if ~equalsizes(size(aRecon),NewSize)
             fprintf('Warning! Start Data has wrong size. Adapting size.')
             aRecon=extract(aRecon,NewSize);
@@ -786,8 +845,9 @@ end
                     if (1) % isempty(OTFmask) || isempty(OTFmask{v}) % creat OTF masks from ideal (unaberrated) OTF if necessary
                         OTFmask=cell(numel(otfrep),1);
                         for no=1:numel(otfrep)
-                            absotf=gaussf(abs(otfrep{no}),1.0);  % to smooth out the zeros a little
-                        	OTFmask{no}=absotf>(max(absotf)/10000);
+                            absotf=fft2rft(gaussf(abs(rft2fft(otfrep{no})),[1.0,1.0,0.0]));  % to smooth out the zeros a little
+                        	OTFmask{no}=absotf>(max(absotf)*5e-3);
+                            OTFmask{no}(0)=0; % preserve energy
                         end
                     end
                     allotf=cat(4,otfrep{:});
@@ -795,9 +855,14 @@ end
                     noFFT=1;  % This is a hack to prevent the fft as this is already an OTF
                     if RegularisationParameters(14,1)  % This means the 2D pupil ist really what is estimated
                         mysize=size(PupilInterpolators.indexList2D,2);
-                        VecOTF=ones(2*mysize,1)/sqrt(2);  %/mysize
+                        if RegularisationParameters(15,1) % PhaseOnly
+                            VecOTF=ones(mysize,1)*pi/4.0; 
+                        else
+                            VecOTF=ones(2*mysize,1)/sqrt(2);  %/mysize
+                        end
                         ResOTF=ConvertInputToModel(VecOTF);
-                        VecOTF=VecOTF/sqrt(sum(rift(ResOTF{1})));  % To force the PSF to have an integral of one
+                        AmpFactor = 1.0/sqrt(sum(rift(ResOTF{1})));
+                        VecOTF=VecOTF*AmpFactor;  % To force the PSF to have an integral of one
                         clear('ResOTF'); % not used any more
 %                        VecOTF=double(VecOTF(:));
                     else  % estimate the 3D OTF voxels
@@ -811,7 +876,11 @@ end
                     if (RegularisationParameters(18,1) <= 0) % can also be if (1)
                         NormFac=1;
                         [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
-                        NormFacOTF=1/(norm(agrad)/numel(agrad))*1e-8;
+                        if RegularisationParameters(15,1) % Phase Only
+                            NormFacOTF=1/(norm(agrad)/numel(agrad))*1e-3;
+                        else
+                            NormFacOTF=1/(norm(agrad)/numel(agrad))*1e-4; % * 1e-8
+                        end
                     else
                         NormFacOTF=RegularisationParameters(18,1);
                     end
@@ -832,15 +901,14 @@ end
                 if nargout > 6
                     allOTF{n}=otfrep;
                 end
-                allotf=cat(4,otfrep{:});
-                psf=fftshift(rift(otfrep{1}));
-                dipshow(6,SubSlice(psf,2)); % (:,floor(size(psf,2)/2),:)
-                global savedATF;
-                if ~isempty(savedATF)
-                    dipshow(7,savedATF);
-                    dipshow(8,phase(savedATF));
-                end
-                dipshow(5,allotf);drawnow();
+%                allotf=cat(4,otfrep{:});
+%                 psf=fftshift(rift(otfrep{1}));
+%                 dipshow(6,SubSlice(psf,2)); % (:,floor(size(psf,2)/2),:)
+%                 if ~isempty(savedATF)
+%                     dipshow(7,savedATF);
+%                     dipshow(8,phase(savedATF));
+%                 end
+%                 dipshow(5,allotf);drawnow();
             end
 
         end
@@ -911,37 +979,44 @@ FinalErrNorm=msevalue/NormFac;
 fprintf('Normalized Error norm is %g\n',FinalErrNorm)
 
 if ~isempty(RefObject)
-    figure
-    plot(RefObject_SAbs,'b');hold on
-    plot(RefObject_SSQ,'g');
-    title('Estimation vector')
-    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
-    ylabel('Error to ground truth');
-    xlabel('Iteration number');    
-    fprintf('To access the error values type\nglobal RefObject_SAbs;global RefObject_SSQ;\n')
-    figure
-    plot(RefObject_SAbs2,'b');hold on
-    plot(RefObject_SSQ2,'g');
-    title('Squared estimation vector')
-    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
-    ylabel('Error to ground truth');
-    xlabel('Iteration number');    
-    fprintf('To access the error values type\nglobal RefObject_SAbs2;global RefObject_SSQ2;\n')
+%     figure
+%     plot(RefObject_SAbs,'b');hold on
+%     plot(RefObject_SSQ,'g');
+%     title('Estimation vector')
+%     legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+%     ylabel('Error to ground truth');
+%     xlabel('Iteration number');    
+%     fprintf('To access the error values type\nglobal RefObject_SAbs;global RefObject_SSQ;\n')
+%     figure
+%     plot(RefObject_SAbs2,'b');hold on
+%     plot(RefObject_SSQ2,'g');
+%     title('Squared estimation vector')
+%     legend({'Mean Abs2 Error','Sqrt(Mean Squared Error2)'})
+%     ylabel('Error to ground truth');
+%     xlabel('Iteration number');    
+%     fprintf('To access the error values type\nglobal RefObject_SAbs2;global RefObject_SSQ2;\n')
 
-    figure
+    figure(201);clf();
     plot(RefObject_SAbs/RefObject_SAbs(1),'b');hold on
     plot(RefObject_SSQ/RefObject_SSQ(1),'g');
     title('Estimation vector')
     legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
     ylabel('Normalized Error to ground truth');
     xlabel('Iteration number');    
-    figure
-    plot(RefObject_SAbs2/RefObject_SAbs2(1),'b');hold on
-    plot(RefObject_SSQ2/RefObject_SSQ2(1),'g');
-    title('Squared estimation vector')
-    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
-    ylabel('Normalized Error to ground truth');
+
+    figure(202);clf();
+    plot(RefObject_NCC,'b');hold on
+    title('Estimation vector')
+    % legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+    ylabel('Normalized Cross Correlation');
     xlabel('Iteration number');    
+%     figure
+%     plot(RefObject_SAbs2/RefObject_SAbs2(1),'b');hold on
+%     plot(RefObject_SSQ2/RefObject_SSQ2(1),'g');
+%     title('Squared estimation vector')
+%     legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+%     ylabel('Normalized Error to ground truth');
+%     xlabel('Iteration number');    
 
     RefObject=[];  % To not always track stuff
 end

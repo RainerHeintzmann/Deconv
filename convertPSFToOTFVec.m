@@ -36,6 +36,7 @@ for v= 1:size(grad,4)  % This loop does the packing
             transformed=rft(subgrad);
             transformed=FixGradRFT(transformed,OTFmask{v});  % Necessary to make the gradient correct for RFTs            
         end
+        clear subgrad;        
         toWrite=double(transformed(OTFmask{v}));  % selects only the pixels inside the mask
         WriteSize=numel(toWrite);
         out(1+WrittenData:WrittenData+WriteSize)=toWrite;
