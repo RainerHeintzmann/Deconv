@@ -322,29 +322,31 @@ if isnan(f)
     return;
 end
 
-if (size(RefObject,2)==1)
-    RefObject=ConvertInputToModel(RefObject);
-end
-x=ConvertInputToModel(x);
-if ~isempty(DeconvMask)
-    x=x(DeconvMask);
-    y=RefObject(DeconvMask);
-else
-    x=x(:);
-    y=RefObject(:);
-end
+if ~isempty(RefObject) && prod(size(RefObject)) >= 1
+    if (size(RefObject,2)==1)
+        RefObject=ConvertInputToModel(RefObject);
+    end
+    x=ConvertInputToModel(x);
+    if ~isempty(DeconvMask)
+        x=x(DeconvMask);
+        y=RefObject(DeconvMask);
+    else
+        x=x(:);
+        y=RefObject(:);
+    end
 
-% Protocol the comparison to the ground truth if wanted
-if ~isempty(RefObject) && ~isempty(x)
-    tmp1=abs(y - x);
-    RefObject_SSQ(i)=sqrt(mean(mean( tmp1.^2)));
-    RefObject_SAbs(i)=mean(mean( tmp1));
-    tmp2=abs(y.^2 - x.^2);
-    RefObject_SSQ2(i)=sqrt(mean(mean( tmp2.^2)));
-    RefObject_SAbs2(i)=mean(mean( tmp2));
+    % Protocol the comparison to the ground truth if wanted
+    if ~isempty(RefObject) && ~isempty(x)
+        tmp1=abs(y - x);
+        RefObject_SSQ(i)=sqrt(mean(mean( tmp1.^2)));
+        RefObject_SAbs(i)=mean(mean( tmp1));
+        tmp2=abs(y.^2 - x.^2);
+        RefObject_SSQ2(i)=sqrt(mean(mean( tmp2.^2)));
+        RefObject_SAbs2(i)=mean(mean( tmp2));
 
-    RefObject_NCC(i)=mean((y-mean(y)).*(x-mean(x)))/sqrt(var(y).*var(x));
-    clear tmp1;clear tmp2;
+        RefObject_NCC(i)=mean((y-mean(y)).*(x-mean(x)))/sqrt(var(y).*var(x));
+        clear tmp1;clear tmp2;
+    end
 end
 
 if ~isempty(ProgressLossFig) && ~isempty(ProgressLossFig)

@@ -999,14 +999,14 @@ if ~isempty(RefObject)
     figure(201);clf();
     plot(RefObject_SAbs/RefObject_SAbs(1),'b');hold on
     plot(RefObject_SSQ/RefObject_SSQ(1),'g');
-    title('Estimation vector')
+    title(' Distance to Ground Truth')
     legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
     ylabel('Normalized Error to ground truth');
     xlabel('Iteration number');    
 
     figure(202);clf();
     plot(RefObject_NCC,'b');hold on
-    title('Estimation vector')
+    title('NCC Distance to Ground Truth')
     % legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
     ylabel('Normalized Cross Correlation');
     xlabel('Iteration number');    
