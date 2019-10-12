@@ -23,7 +23,7 @@ for n=1:length(otfrep)
     clear('OTF');
     ZeroTransfer = max(aOTF);
     aOTF = aOTF / ZeroTransfer;
-    RelBorder = 1e-3;
+    RelBorder = 5e-3;
     if (0)
         ProjX = sum(aOTF,[],[2,3]); ProjX = ProjX / max(ProjX);ProjY = sum(aOTF,[],[1,3]); ProjY = ProjY / max(ProjY);ProjZ = sum(aOTF,[],[1,2]); ProjZ = ProjZ / max(ProjZ);
         XMask = ProjX < RelBorder;YMask = ProjY < RelBorder;ZMask = ProjZ < RelBorder;
@@ -37,6 +37,16 @@ for n=1:length(otfrep)
             ProjZ=double_force(ProjZ);
         end
         XPos = find(~ProjX,1);YPos = find(~ProjY,1);ZPos = find(~ProjZ,1);
+        MaxX = floor(size(aOTF,1)/2);MaxY = size(aOTF,2);MaxZ = floor(size(aOTF,3)/2);
+        if isempty(XPos) || XPos > MaxX
+            XPos = MaxX;
+        end
+        if isempty(YPos) || YPos > MaxY
+            YPos = MaxY;
+        end
+        if isempty(ZPos) || ZPos > MaxZ
+            ZPos = MaxZ;
+        end
     end
     CutOff = [XPos,YPos,ZPos];  % Abbe Radius.  AbbeMaxRadiusFromPSF(ImageParam,PSFParam);
     CutOffRed = CutOff*0.5;

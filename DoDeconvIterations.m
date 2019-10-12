@@ -322,7 +322,8 @@ if isnan(f)
     return;
 end
 
-if ~isempty(RefObject) && prod(size(RefObject)) >= 1
+RefSize=prod(size(RefObject));
+if ~isempty(RefObject) && RefSize >= 1 && RefSize == prod(size(x))
     if (size(RefObject,2)==1)
         RefObject=ConvertInputToModel(RefObject);
     end

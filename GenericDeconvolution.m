@@ -465,8 +465,6 @@ end
 measSums=cell(length(myim),1);
 measSumsSqr=cell(length(myim),1);
 
-
-
 for v=1:length(myim)
     measSums{v}=sum(myim{v},DeconvMask);
     if RegObj(17,1) || RegIllu(17,1) || RegOTF(17,1)
