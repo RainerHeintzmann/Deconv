@@ -17,7 +17,7 @@
 
 function [myReg,myRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals,RefImgX,RefImgY)   
      %both RefImgX and RefImgY are EM image
-     %the gradient of EM is calculated by cricshift(idealy not calculated
+     %the gradient of EM is calculated by circshift(idealy not calculated
      %during the iterations)
         if (ndims(toRegularize) == 2) || (size(toRegularize,3) == 1)
             if (ndims(toRegularize) == 2)
@@ -49,9 +49,9 @@ function [myReg,myRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals,RefImgX,RefImg
             myReg = sum((abssqr(aGradL{1}) + abssqr(aGradL{2}) + abssqr(aGradL{3}))./RefImgX + (abssqr(aGradR{1}) + abssqr(aGradR{2}) + abssqr(aGradR{3}))./RefImgY);
             myRegGrad = 4*((aGradL{1}/BetaVals(1) + aGradL{2}/BetaVals(2) + aGradL{3}/BetaVals(3))./RefImgX -...
                            (aGradR{1}/BetaVals(1) + aGradR{2}/BetaVals(2) + aGradR{3}/BetaVals(3))./RefImgY - ...
-                            aGradR{1}/BetaVals(1)./cricshift(RefImgX,[-1,0,0]) - aGradR{2}/BetaVals(2)./cricshift(RefImgX, [0,-1,0]) - ...
-                            aGradR{3}/BetaVals(3)./cricshift(RefImgX, [0,0,-1]) + aGradL{1}/BetaVals(1)./cricshift(RefImhY, [1,0,0]) + ...
-                            aGradL{2}/BetaVals(2)./cricshift(RefImgY,[0,1,0]) + aGradL{3}/BetaVals(3)./cricshift(RefImgY, [0,0,1]));       
+                            aGradR{1}/BetaVals(1)./circshift(RefImgX,[-1,0,0]) - aGradR{2}/BetaVals(2)./circshift(RefImgX, [0,-1,0]) - ...
+                            aGradR{3}/BetaVals(3)./circshift(RefImgX, [0,0,-1]) + aGradL{1}/BetaVals(1)./circshift(RefImgY, [1,0,0]) + ...
+                            aGradL{2}/BetaVals(2)./circshift(RefImgY,[0,1,0]) + aGradL{3}/BetaVals(3)./circshift(RefImgY, [0,0,1]));       
         else % 1-D
             aGradL=(toRegularize - circshift(toRegularize,1))/BetaVals(1);  
             aGradR=(circshift(toRegularize,-1) - toRegularize)/BetaVals(1);  % cyclic rotation

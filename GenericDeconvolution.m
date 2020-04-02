@@ -219,7 +219,9 @@ myim=image;  % Just temporarily to be used for size determination
 %%
 % somehow the line below gets overwritten, so we have to set the boudary
 % in the inner loop "GenericErrorAndDeriv"
-dip_setboundary('periodic')  % Establishes Periodic Boudary conditions.
+if exist('dip_setboundary','file')
+    dip_setboundary('periodic')  % Establishes Periodic Boudary conditions.
+end
 
 if isa(borderSizes,'dip_image')
     fprintf('Mask provided as bordersize. Using mask instead of generating borders');
@@ -346,8 +348,9 @@ if norm(borderSizes) > 0 || any(subSampling~=1)
             end
             for v=1:length(myim)  % insert empty information
                 myim{v}=extract(myim{v},NewDataSize);  % Overwrite the old data
-                if ~isempty(psf{1}) && (v<=numel(psf)) && norm(size(psf{v})-NewSize)~=0  % Not NewObjSize since the Resampling does not affect the OTF
-                    psf{v}=squeeze(extract(psf{v},NewSize,[],'cyclic'));  % Not NewObjSize since the Resampling does not affect the OTF
+                if ~isempty(psf{1}) && (v<=numel(psf)) && ~equalsizes(size(psf{v}),NewSize)  % Not NewObjSize since the Resampling does not affect the OTF
+                    % psf{v}=squeeze(extract(psf{v},NewSize,[],'cyclic'));  % Not NewObjSize since the Resampling does not affect the OTF
+                    psf{v}=extract(psf{v},NewSize);  % Not NewObjSize since the Resampling does not affect the OTF
                     fprintf('Warning: View %d, PSF has incorrect size. Adapting the size of the PSF\n',v);
                 end
             end
@@ -476,7 +479,7 @@ for v=1:length(myim)
         mysum=mysum+measSums{v}/myDivisor;  % use the old size because of the effect of zero padding and the normalisation of the psf
     end
 end
-mymean=mysum/length(myim);  % Force it to be real
+mymean=mysum; % /length(myim) * length(myim);  % The second factor is to account for the PSF which is normalized to a sum of one over all views
 
     if (1)
         svecsize=NewIlluSize; % as defined above.  Not size(myim{1}) is the object lives in a different space
@@ -489,10 +492,12 @@ mymean=mysum/length(myim);  % Force it to be real
             startVec=startVec+1e-3;
             % startVec=NumViews*(double(repmat(1e-3,[1 prod(svecsize)])))';  % For now, just start with a guess of one, so the amplitude algorithm does not screw up
         else
-            startVec=startVec+mymean-RegObj(12,1);  % account for the background value in the object estimate
             if RegObj(12,1) > mymean
-                error('The background estimate is bigger than the mean value of the data. Something is wrong here! Aborting.');
+                msgbox('The background estimate is bigger than the mean value of the data. Something is wrong here! Aborting.');
+                res=[];
+                return
             end
+            startVec=startVec+mymean-RegObj(12,1);  % account for the background value in the object estimate
             % startVec=NumViews*(double(repmat(mymean,[1 prod(svecsize)])))';
         end
     else
@@ -522,8 +527,11 @@ mymean=mysum/length(myim);  % Force it to be real
 
 AssignFunctions(RegularisationParameters,0); % Object estimate for the startVec estimation below.
 
-if isempty(aRecon) || ~equalsizes(size(aRecon),size(startVec))
+if isempty(aRecon) 
     aRecon=startVec;  % Just to have the size information inside
+elseif ~equalsizes(size(aRecon),size(startVec))
+    fprintf('Warning aRecon is not equal in size to the reconstruction domain. Using extract to adapt.\n');
+    aRecon=extract(aRecon,size(startVec));  % Just to have the size information inside    
 end
 
 startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
@@ -954,6 +962,11 @@ if (nargout > 2)
     resPSF=cell(1,numel(otfrep));
     for c=1:numel(otfrep)
         resPSF{c}=ifftshift(rift(otfrep{c}));
+        if useCuda
+            toc
+            resPSF{c}=dip_image_force(resPSF{c});
+            toc
+        end
     end
 end
 clear otfrep;
@@ -994,27 +1007,45 @@ if ~isempty(RefObject)
 %     xlabel('Iteration number');    
 %     fprintf('To access the error values type\nglobal RefObject_SAbs2;global RefObject_SSQ2;\n')
 
-    figure(201);clf();
-    plot(RefObject_SAbs/RefObject_SAbs(1),'b');hold on
-    plot(RefObject_SSQ/RefObject_SSQ(1),'g');
-    title(' Distance to Ground Truth')
-    legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
-    ylabel('Normalized Error to ground truth');
-    xlabel('Iteration number');    
+    Colors = {'b','g','r','m','c','k'};
 
-    figure(202);clf();
-    plot(RefObject_NCC,'b');hold on
-    title('NCC Distance to Ground Truth')
-    % legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
-    ylabel('Normalized Cross Correlation');
-    xlabel('Iteration number');    
-%     figure
-%     plot(RefObject_SAbs2/RefObject_SAbs2(1),'b');hold on
-%     plot(RefObject_SSQ2/RefObject_SSQ2(1),'g');
-%     title('Squared estimation vector')
-%     legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
-%     ylabel('Normalized Error to ground truth');
-%     xlabel('Iteration number');    
+    if ~isempty(RefObject_SAbs)
+        figure(201);hold on;
+        myLegend = get(legend(),'String');
+        Col = length(myLegend)/2;
+        plot(RefObject_SAbs/RefObject_SAbs(1),Colors{mod(Col,length(Colors))+1});
+        plot(RefObject_SSQ/RefObject_SSQ(1),[Colors{mod(Col,length(Colors))+1},'--']);
+        title(' Distance to Ground Truth')
+        myLegend{end+1}=sprintf('Mean Abs Error (Col %d)',Col+1);
+        myLegend{end+1}=sprintf('Sqrt(Mean Squared Error) (Col %d)',Col+1);
+        legend(myLegend)
+        ylabel('Normalized Error to ground truth');
+        xlabel('Iteration number');    
+        hold off;
+        drawnow();
+    end
+
+    if ~isempty(RefObject_NCC)
+        figure(202);hold on;
+        myLegend = get(legend(),'String');
+        Col = length(myLegend);
+        plot(RefObject_NCC,Colors{mod(Col,length(Colors))+1});
+        title('NCC Distance to Ground Truth')
+        % legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+        ylabel('Normalized Cross Correlation');
+        xlabel('Iteration number');    
+        Col = length(myLegend);
+        myLegend{end+1}=sprintf('NCC (Col %d)',Col+1);
+        legend(myLegend,'Location','southeast')
+        drawnow();
+    %     figure
+    %     plot(RefObject_SAbs2/RefObject_SAbs2(1),'b');hold on
+    %     plot(RefObject_SSQ2/RefObject_SSQ2(1),'g');
+    %     title('Squared estimation vector')
+    %     legend({'Mean Abs Error','Sqrt(Mean Squared Error)'})
+    %     ylabel('Normalized Error to ground truth');
+    %     xlabel('Iteration number');    
+    end
 
     RefObject=[];  % To not always track stuff
 end

@@ -43,6 +43,8 @@ end
 
 tilesize=tilesize-aborder; %for the overlap
 tilenum=ceil((imgsize-aborder)./(tilesize)); %number of tiles. Aurelie
+aborder(tilenum<=1) = 0;  % Fix! R.H.
+tilenum(tilenum <1)=1;
 if exist('disableCuda','file')
     disableCuda()
 end
@@ -88,3 +90,14 @@ for tz=1:tilenum(3)
     end
 end
 
+% function res=mycat(dimension,varargin)
+% args=varargin(~cellfun('isempty',varargin));
+% res = cat(dimension,args{:});
+
+
+% function res=myramp(sz,dimension,varargin)
+% if any(sz<=0)
+%     res=[];
+% else
+%     res=ramp(sz,dimension,varargin{:});
+% end

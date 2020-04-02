@@ -148,7 +148,7 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
         
         if viewNum==1 && (isempty(ToEstimate) || ToEstimate==0 || ToEstimate==2) && (isempty(myillu))% Object or OTF estimate
             if ~isequal(FwdModel,@FwdIdentity)  % Otherwise the ft is not needed.
-                if isreal(aRecon) && (norm(size(myOtf)-size(aRecon))~=0)
+                if isreal(aRecon) && ~equalsizes(size(myOtf),size(aRecon))
                     ftRecon=rft(aRecon);  % To save time and only compute this ft once for multi-view deconvolutions
                     if any(aResampling~=1)
                         ftRecon=rft_resize(ftRecon,1./aResampling);  % if the user wants to use a different reconstruction grid

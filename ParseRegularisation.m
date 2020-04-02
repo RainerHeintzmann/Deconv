@@ -26,7 +26,7 @@ if nargin<2
     toReg=0; % meaning object
 end
 
-NumMaxPar=35;
+NumMaxPar=36;
 RegMat1 = zeros(NumMaxPar,4); % Object updates
 RegMat2 = zeros(NumMaxPar,4); % Illumination updates
 RegMat3 = zeros(NumMaxPar,4); % PSF updates
@@ -148,6 +148,7 @@ for n=1:size(mycells,1)
             elseif ~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda'))
                 error('When submitting a starting image for object or illumination, it has to be a dip_image or cuda type');
             else
+                res = StartImg;
                 RegMat1(6,1)=1;  % Reuse what is written into aRecon below
             end
             if toReg==0
@@ -345,6 +346,9 @@ for n=1:size(mycells,1)
             RegMat1(33,1)=mycells{n,2}{1};
             RefImgX=mycells{n,2}{2};  % Reference Img X
             RefImgY=mycells{n,2}{3};  % Reference Img Y
+        case 'IG'  % Args are : Lambda
+            RegMat1(36,1)=mycells{n,2}{1};
+            RefImgX=mycells{n,2}{2};  % Reference Img X
         case 'ReadVariance'
             ReadVariance=mycells{n,2}(1);
         case 'NoPSF'

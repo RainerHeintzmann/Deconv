@@ -338,6 +338,12 @@ if ~isempty(RefObject) && RefSize >= 1 && RefSize == prod(size(x))
 
     % Protocol the comparison to the ground truth if wanted
     if ~isempty(RefObject) && ~isempty(x)
+        if any(isnan(y))
+            fprintf('Problem with ReferenceObject! NaN detected.')
+        end
+        if any(isnan(x))
+            fprintf('Problem with Reconstruction! NaN detected.')
+        end
         tmp1=abs(y - x);
         RefObject_SSQ(i)=sqrt(mean(mean( tmp1.^2)));
         RefObject_SAbs(i)=mean(mean( tmp1));

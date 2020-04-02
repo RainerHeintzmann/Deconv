@@ -106,10 +106,17 @@ if myLambda ~= 0
 end
 
 
-myLambda=RegularisationParameters(33,1); %case CLE-GS with Guidance image
+myLambda=RegularisationParameters(33,1); %case CLE-Gradient guided squared with Guidance image
 
 if myLambda ~= 0
     [aReg,aRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals,RefImgX,RefImgY);
+    myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
+end
+
+myLambda=RegularisationParameters(36,1); %case Correlative light EM, Intensity-Guided with Guidance image
+
+if myLambda ~= 0
+    [aReg,aRegGrad]=RegularizeIG(toRegularize,BetaVals,RefImgX);
     myReg = myReg+myLambda * aReg; myRegGrad = myRegGrad + myLambda * aRegGrad;
 end
 
