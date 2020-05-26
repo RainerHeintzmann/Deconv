@@ -172,6 +172,11 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
     [myError,residuum] = CalcResiduum(Recons,myImg,DMask); % May change Recons to force positivity. Possible Functions are ResidPoisson, ResidLeastSqr, ResidWeightedLeastSqr
     % clear Recons;
     err=err+myError;
+%     if viewNum == 1
+%         %  Recons,aRecon,residuum
+%         fprintf('Debug here: %g.',myError)
+%         fprintf('\n')
+%     end
     residuum=BwdSubsample(residuum,subSampling);
     %% Apply the Transpose (Bwd Model)
     for subViewOTFNum =1:OTFsPerView  % iterates over sup-views in the case of 3DSIM generating as a sum only one Fwd projected image
@@ -266,9 +271,9 @@ if ToEstimate == 2 && RegularisationParameters(13,1)
     end
 end
 
-if isempty(ToEstimate) || ToEstimate==0  % object estimate has to be summed for all views
-   thegrad = BwdExtraModel(thegrad,1);
-end
+%if isempty(ToEstimate) || ToEstimate == 0 || ToEstimate == 1 % object estimate has to be summed for all views.  BwdSqrModel has to be applied.
+thegrad = BwdExtraModel(thegrad,1);
+%end
 clear DMask;
 
 err = double(NormFac*err);

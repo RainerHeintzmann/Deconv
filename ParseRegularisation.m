@@ -148,7 +148,6 @@ for n=1:size(mycells,1)
             elseif ~(isa(mycells{n,2},'dip_image') || isa(mycells{n,2},'cuda'))
                 error('When submitting a starting image for object or illumination, it has to be a dip_image or cuda type');
             else
-                res = StartImg;
                 RegMat1(6,1)=1;  % Reuse what is written into aRecon below
             end
             if toReg==0
@@ -187,6 +186,12 @@ for n=1:size(mycells,1)
         case 'ForcePos'
             RegMat1(9,1)=1;  
             %ForcePos=1;
+        case 'ForceHyperPos'  % The hyperbolic version of ForcePos
+            RegMat1(9,1)=2;
+            %ForcePos=2;
+        case 'ForcePiecewisePos'  % The piecewise function to force positivity. The first two dervatives at continuous !
+            RegMat1(9,1)=3;
+            %ForcePos=2;
         case 'Resample'  % reconstructed object is in a different sampling than data
             aResampling=mycells{n,2};
         case 'SubSampling'  % This means the data is subsampled by a fixed factor including aliasing

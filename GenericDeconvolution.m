@@ -479,7 +479,7 @@ for v=1:length(myim)
         mysum=mysum+measSums{v}/myDivisor;  % use the old size because of the effect of zero padding and the normalisation of the psf
     end
 end
-mymean=mysum; % /length(myim) * length(myim);  % The second factor is to account for the PSF which is normalized to a sum of one over all views
+mymean=mysum/length(myim);  % Force it to be real
 
     if (1)
         svecsize=NewIlluSize; % as defined above.  Not size(myim{1}) is the object lives in a different space
@@ -488,15 +488,27 @@ mymean=mysum; % /length(myim) * length(myim);  % The second factor is to account
         else
             startVec=newim(svecsize);
         end
+        if RegObj(12,1) > mymean
+            msgbox('The background estimate is bigger than the mean value of the data. Something is wrong here! Aborting.');
+            res=[];
+            resIllu=[];
+            resPSF=[];
+            return
+        end
+        if RegObj(12,1) ~= 0
+            if RegIllu(12,1) == 0
+               fprintf('WARNING: No background was given for illumination iterations but only for object itereations. Using Illumination background from Object background.\n');
+               RegIllu(12,1) = RegObj(12,1);
+            end
+            if RegOTF(12,1) == 0
+               fprintf('WARNING: No background was given for PSF iterations but only for object itereations. Using Illumination background from Object background.\n');
+               RegOTF(12,1) = RegObj(12,1);
+            end
+        end
         if RegObj(9,1) && (mymean < 1e-2)   % Force Positive. In this case one needs an offset, even though the model (e.g. in the amplite world) does not support it.
-            startVec=startVec+1e-3;
+            startVec=startVec+1e-3-RegObj(12,1);
             % startVec=NumViews*(double(repmat(1e-3,[1 prod(svecsize)])))';  % For now, just start with a guess of one, so the amplitude algorithm does not screw up
         else
-            if RegObj(12,1) > mymean
-                msgbox('The background estimate is bigger than the mean value of the data. Something is wrong here! Aborting.');
-                res=[];
-                return
-            end
             startVec=startVec+mymean-RegObj(12,1);  % account for the background value in the object estimate
             % startVec=NumViews*(double(repmat(mymean,[1 prod(svecsize)])))';
         end
@@ -527,11 +539,8 @@ mymean=mysum; % /length(myim) * length(myim);  % The second factor is to account
 
 AssignFunctions(RegularisationParameters,0); % Object estimate for the startVec estimation below.
 
-if isempty(aRecon) 
+if isempty(aRecon) || ~equalsizes(size(aRecon),size(startVec))
     aRecon=startVec;  % Just to have the size information inside
-elseif ~equalsizes(size(aRecon),size(startVec))
-    fprintf('Warning aRecon is not equal in size to the reconstruction domain. Using extract to adapt.\n');
-    aRecon=extract(aRecon,size(startVec));  % Just to have the size information inside    
 end
 
 startVec=ConvertModelToVec(startVec);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
@@ -709,7 +718,7 @@ end
             %             VecIllu=ones(DataSize*(numel(myim)-length(myillu_sumcond)),1);  % one less than all illumination patterns, as the last one is defined by the sum condition
             %         end
             %
-            AssignFunctions(RegularisationParameters,2); % Illumination estimate for the startVec estimation below.
+            AssignFunctions(RegIllu,2); % Illumination estimate for the startVec estimation below.
             VecIllu=ConvertModelToVec(VecIllu);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
             %
             sumSqr=0;

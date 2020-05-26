@@ -263,12 +263,31 @@ if RegularisationParameters(15,1) % ForcePhase, Forces object to be a phase only
         error('Please decide whether you want to reconstruct a phase-only (ForcePhase-) or a nonnegativ (ForcePos-) object');
     end
 elseif RegularisationParameters(9,1) % ForcePos, Forces object to be positive by estimating only its squareroot
-    ConvertInputToModel=@(vec)ApplySqrModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
-    %ConvertGradToVec=@(grad)ApplySqrModelGrad(grad,ConvertGradToVec);
-    BwdExtraModel=@(grad,viewNum)ApplySqrModelBwd(grad,viewNum,BwdExtraModel);
-    ConvertModelToVec=@(model)ApplyInverseSqrModel(model,ConvertModelToVec);
+    switch RegularisationParameters(9,1)
+        case 1   % simple square model (has a splittig problem)?
+            ConvertInputToModel=@(vec)ApplySqrModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
+            %ConvertGradToVec=@(grad)ApplySqrModelGrad(grad,ConvertGradToVec);
+            BwdExtraModel=@(grad,viewNum)ApplySqrModelBwd(grad,viewNum,BwdExtraModel);
+            ConvertModelToVec=@(model)ApplyInverseSqrModel(model,ConvertModelToVec);
+        case 2   % use the advanced hyperbolic positive model
+            ConvertInputToModel=@(vec)ApplyHyperbolicPosModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
+            BwdExtraModel=@(grad,viewNum)ApplyHyperbolicPosModelBwd(grad,viewNum,BwdExtraModel);
+            ConvertModelToVec=@(model)ApplyInverseHyperbolicPosModel(model,ConvertModelToVec);
+        case 3   % use the advanced hyperbolic positive model
+            ConvertInputToModel=@(vec)ApplyPiecewiseSqrPosModel(vec,ConvertInputToModel);  % fixes the second parameter is the current model
+            BwdExtraModel=@(grad,viewNum)ApplyPiecewiseSqrPosModelBwd(grad,viewNum,BwdExtraModel);
+            ConvertModelToVec=@(model)ApplyInversePiecewiseSqrPosModel(model,ConvertModelToVec);
+        otherwise
+            error('unknown case for forcePos')
+    end
 end
-% if RegularisationParameters(20,1)~=0 % RealSpaceMask  : E.g. used for light sheet blind PSF deconvolution to multiply the PSF with a known Z-Gaussian    
+
+if ~isempty(myillu_sumcond) && ToEstimate == 2
+    avoidNeg = RegularisationParameters(9,1)>0;
+    ConvertInputToModel=@(vec)ApplySumCondition(vec,ConvertInputToModel, avoidNeg); % has to be applied just before assignment
+end
+
+% if RegularisationParameters(20,1)~=0 % RealSpaceMask  : E.g. used for light sheet blind PSF deconvolution to multiply the PSF with a known Z-Gaussian
 %     ConvertInputToModel=@(vec)ApplyMaskModel(vec,ConvertInputToModel,RegularisationParameters(20,1));  
 %     BwdExtraModel=@(grad,viewNum)ApplyMaskModelBwd(grad,viewNum,BwdExtraModel,RegularisationParameters(20,1));
 %     ConvertModelToVec=@(model)ApplyInverseMaskModel(model,ConvertModelToVec,RegularisationParameters(20,1));
