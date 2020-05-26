@@ -351,9 +351,11 @@ for n=1:size(mycells,1)
             RegMat1(33,1)=mycells{n,2}{1};
             RefImgX=mycells{n,2}{2};  % Reference Img X
             RefImgY=mycells{n,2}{3};  % Reference Img Y
+            RegMat1(33,2)=mycells{n,2}{4};%Fengjiao 25.05.2020
         case 'IG'  % Args are : Lambda
             RegMat1(36,1)=mycells{n,2}{1};
             RefImgX=mycells{n,2}{2};  % Reference Img X
+            RegMat1(36,2)=mycells{n,2}{3};%Fengjiao 25.05.2020
         case 'ReadVariance'
             ReadVariance=mycells{n,2}(1);
         case 'NoPSF'

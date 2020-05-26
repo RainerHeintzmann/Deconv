@@ -1,4 +1,4 @@
-% [myReg,myRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals) computes a guided Gradient squared regularisation.
+% [myReg,myRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals) computes a gradient-guided regularization for CLEM.
 % penalty=|grad(f)|^2/RefImg
 % toRegularize : 2D or 3D array to regularize
 % myReg : Penalty value
@@ -15,10 +15,12 @@
 % RefImgY=RefR;  % close to zero means high regularization, high value mean no regularization.
 
 
-function [myReg,myRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals,RefImgX,RefImgY)   
+function [myReg,myRegGrad]=RegularizeCLE_GS(toRegularize,BetaVals,RefImgX,RefImgY,ep)   
      %both RefImgX and RefImgY are EM image
-     %the gradient of EM is calculated by circshift(idealy not calculated
+     %the gradient of EM is calculated by cricshift(idealy not calculated
      %during the iterations)
+     RefImgX = RefImgX + ep;
+     RefImgY = RefImgY + ep; %fengjiao 25.05.2020
         if (ndims(toRegularize) == 2) || (size(toRegularize,3) == 1)
             if (ndims(toRegularize) == 2)
                 aGradL{1}=(toRegularize - circshift(toRegularize,[1 0]))/BetaVals(1);  % cyclic rotation

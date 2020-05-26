@@ -251,6 +251,7 @@ for viewNum = 1:numViews    % This iterates over all the different measured imag
             end
             thegrad(:,:,:,agradIdx)=myGrad + myRegGrad;  % thegrad estimates only ONE pattern even if there are multiple sub-patterns in it
         else  % The last residuum has to be subtracted from each of the other residuals, see eq. S14 and S4 in supplementary methods of DOI: 10.1038/NPHOTON.2012.83
+            % class(thegrad)
             thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)=thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)-(myGrad+myRegGrad);
             % thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)=thegrad(:,:,:,prevSumCondGradIdx:agradIdx-1)-repmat(myGrad+myRegGrad,[1 1 1 agradIdx-prevSumCondGradIdx]);
             prevSumCondGradIdx=agradIdx;

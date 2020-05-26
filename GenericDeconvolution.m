@@ -393,6 +393,19 @@ if (~isempty(PupilInterpolators) && ndims(myim{1})>2 && size(myim{1},3)>1)
         PupilInterpolators.Mask=ConditionalCudaConvert(PupilInterpolators.Mask,useCuda,1);
     end
 end
+
+if (RegularisationParameters(33,1)) % extract Ref EM images Fengjiao 20.05.2020
+    global RefImgX
+    global RefImgY
+    RefImgX = extract(RefImgX, NewDataSize);%+RegularisationParameters(33,2);
+    RefImgY = extract(RefImgY, NewDataSize);%+RegularisationParameters(33,2);    
+end
+
+if (RegularisationParameters(36,1)) % extract Ref EM images Fengjiao 25.05.2020
+    global RefImgX
+    RefImgX = extract(RefImgX, NewDataSize);%+RegularisationParameters(36,2);    
+end
+
 %%
 if isempty(psf{1}) && ~RegObj(21,1)  % Only FTData does not need PSF
     if RegOTF(14,1)
@@ -497,11 +510,11 @@ mymean=mysum/length(myim);  % Force it to be real
         end
         if RegObj(12,1) ~= 0
             if RegIllu(12,1) == 0
-               fprintf('WARNING: No background was given for illumination iterations but only for object itereations. Using Illumination background from Object background.\n');
+               fprintf('WARNING: No Background was given for illumination iterations but only for object iterations. Using Illumination background from Object background.\n');
                RegIllu(12,1) = RegObj(12,1);
             end
             if RegOTF(12,1) == 0
-               fprintf('WARNING: No background was given for PSF iterations but only for object itereations. Using Illumination background from Object background.\n');
+               fprintf('WARNING: No Background was given for PSF iterations but only for object iterations. Using Illumination background from Object background.\n');
                RegOTF(12,1) = RegObj(12,1);
             end
         end

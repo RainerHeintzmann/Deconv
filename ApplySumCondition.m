@@ -15,7 +15,8 @@ sumviews=0;
 currentSumCondIdx=1;
 for v= 1:numel(myim)  % last pattern will be generated from sum-requirement
     if isempty(myillu_sumcond) || v ~= myillu_sumcond{currentSumCondIdx}
-        asum=asum+myillu{v};
+        tmp = myillu{v};
+        asum=asum+tmp;
         sumviews=sumviews+1;
     else
         tmp=(sumviews+1)-asum;   % The sum is forced to be constrained. 

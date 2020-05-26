@@ -13,6 +13,22 @@ function resim=TiledProcessing(tilesize,bordersize,data,myarglist,aFunction,extr
 global ringmask;
 global DoStop;
 ringmask=[];
+global RefImgX %fengjiao 25.05.2020
+global RefImgY 
+Rg=myarglist{5};%fengjiao 25.05.2020
+CLEM_GG = 0;
+CLEM_IG = 0;
+for ri=1:size(Rg,1)
+    switch (Rg{ri,1})
+        case 'CLE_GS'
+            CLEM_GG = 1;
+            RefX = Rg{ri,2}{2};
+            RefY = Rg{ri,2}{3};
+        case 'IG'
+            CLEM_IG =1 ;
+            RefX = Rg{ri,2}{2};
+    end
+end
 if nargin < 5
     aFunction=@GenericDeconvolution
 end
@@ -64,6 +80,13 @@ for tz=1:tilenum(3)
             mytile=img(xs:xe,ys:ye,zs:ze); %Cut a tile. Size is as defined in input, except for the last tile.
             if extraOffset~=0
                 mytile=mytile+extraOffset;
+            end
+            if(CLEM_GG)
+                RefImgX = RefX(xs:xe,ys:ye,zs:ze); %fengjiao 25.05.2020
+                RefImgY = RefY(xs:xe,ys:ye,zs:ze);
+            end
+            if(CLEM_IG)
+                RefImgX = RefX(xs:xe,ys:ye,zs:ze); %fengjiao 25.05.2020
             end
             result=aFunction(mytile,myarglist{:}); %Perform the function on each tile
             disableCuda();

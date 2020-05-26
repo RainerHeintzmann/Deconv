@@ -9,5 +9,7 @@ if length(asize) < 3
 end
 
 if nargout > 0
-    thegrad=newim([asize (length(myillu)-length(myillu_sumcond))]);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
+    thegrad=newim_like(res{1}, [asize (length(myillu)-length(myillu_sumcond))]);  % clears the gradient. Defines it first as a dipimage. Later it is converted back to a double vector
+    %fprintf('newim\n')
+    %class(thegrad)
 end

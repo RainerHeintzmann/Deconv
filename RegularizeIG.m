@@ -9,7 +9,8 @@
 
 
 
-function [myReg,myRegGrad]=RegularizeIG(toRegularize,BetaVals,RefImg)   
+function [myReg,myRegGrad]=RegularizeIG(toRegularize,BetaVals,RefImg,ep)  
+             RefImg = RefImg + ep;% fengjiao 25.05.2020
              myReg = sum(toRegularize./RefImg);
              myRegGrad = 1/RefImg;                
 end            
