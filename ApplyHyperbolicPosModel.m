@@ -20,9 +20,9 @@ res= mysqrt + res / 2.0;   % This is the original simple equation, but it is num
 else  % For data which exists as cell array. E.g. myillu
     for n=1:size(res,2)
         mysqrt = sqrt(b2 + abssqr(res{n}) / 4.0);
-        savedInputHyperB{n} = {(0.5 + res / mysqrt / 4.0)};  % no abs here! This saves the whole gradient multiplyer
+        savedInputHyperB{n} = (0.5 + res{n} / mysqrt / 4.0);  % no abs here! This saves the whole gradient multiplyer
 
-        res{n}= mysqrt + res / 2.0;   % This is the original simple equation, but it is numerically very unstable for small numbers!
+        res{n}= mysqrt + res{n} / 2.0;   % This is the original simple equation, but it is numerically very unstable for small numbers!
         
 %         taylor1 = b2 / (2.0 * mysqrt);
 %         diff = res{n} / 2.0 + mysqrt;  % for negative values this is a difference
