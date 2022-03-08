@@ -126,6 +126,10 @@ global RefObject_SAbs; % For checking the progress to the ground truth during it
 global RefObject_SSQ2;  % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_SAbs2; % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_NCC; % For checking the progress to the ground truth during iterations.  RH 2017
+global ProgressLoss;
+global RefImgX;
+global RefImgY;
+
 global noFFT;  % This is a hack to prevent the fft as this is already an OTF
 
 %global ComplexObj;    % Can the object to estimate be complex valued?
@@ -395,14 +399,11 @@ if (~isempty(PupilInterpolators) && ndims(myim{1})>2 && size(myim{1},3)>1)
 end
 
 if (RegularisationParameters(33,1)) % extract Ref EM images Fengjiao 20.05.2020
-    global RefImgX
-    global RefImgY
     RefImgX = extract(RefImgX, NewDataSize);%+RegularisationParameters(33,2);
     RefImgY = extract(RefImgY, NewDataSize);%+RegularisationParameters(33,2);    
 end
 
 if (RegularisationParameters(36,1)) % extract Ref EM images Fengjiao 25.05.2020
-    global RefImgX
     RefImgX = extract(RefImgX, NewDataSize);%+RegularisationParameters(36,2);    
 end
 
@@ -588,13 +589,14 @@ if ~isempty(RefObject)
         if (~isvector(RefObject))
             RefObject=ConvertModelToVec(RefObject);    % converts the dip_image back to a linear matlab vector. Also does the required Fourier-transform for illumination estimation
         end
-        % if ~RegObj(6,1)  % means reuse previous result
-            RefObject_SSQ=[];  % For checking the progress to the ground truth during iterations.  
-            RefObject_SAbs=[]; % For checking the progress to the ground truth during iterations.  
-            RefObject_SSQ2=[];  % For checking the progress to the ground truth during iterations. 
-            RefObject_SAbs2=[]; % For checking the progress to the ground truth during iterations. 
-            RefObject_NCC=[]; % For checking the progress to the ground truth during iterations. 
-        % end
+end
+if ~RegObj(6,1) || isempty(RefObject)  % means reuse previous result
+    ProgressLoss=[];
+    RefObject_SSQ=[];  % For checking the progress to the ground truth during iterations.  
+    RefObject_SAbs=[]; % For checking the progress to the ground truth during iterations.  
+    RefObject_SSQ2=[];  % For checking the progress to the ground truth during iterations. 
+    RefObject_SAbs2=[]; % For checking the progress to the ground truth during iterations. 
+    RefObject_NCC=[]; % For checking the progress to the ground truth during iterations. 
 end
 
 %lambdaPenalty=0; % 1e6;

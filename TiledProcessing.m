@@ -13,12 +13,14 @@ function resim=TiledProcessing(tilesize,bordersize,data,myarglist,aFunction,extr
 global ringmask;
 global DoStop;
 ringmask=[];
-global RefImgX %fengjiao 25.05.2020
-global RefImgY 
+
 Rg=myarglist{5};%fengjiao 25.05.2020
 CLEM_GG = 0;
 CLEM_IG = 0;
 for ri=1:size(Rg,1)
+    if iscell(Rg{1})
+        Rg = Rg{1};  % in case the parameters are {{ObjParams],[IlluParams],{PSFParams}} use only the ObjParams
+    end
     switch (Rg{ri,1})
         case 'CLE_GS'
             CLEM_GG = 1;
@@ -37,12 +39,13 @@ if nargin<6
 end
 img=data;
 clear data
-imgsize=size(img);
+imgsize=size(img{1});
 if nargin < 1
     if numel(imgsize)==2 %2D data
         tilesize=[100 100];
-    else if numel(imgsize)==3 %3D data
-        tilesize=[100 100 100];
+    else
+        if numel(imgsize)==3 %3D data
+            tilesize=[100 100 100];
         end
     end
 end
@@ -64,7 +67,7 @@ tilenum(tilenum <1)=1;
 if exist('disableCuda','file')
     disableCuda()
 end
-resim=newim(img,datatype(img)); %initialisation
+resim=newim(imgsize,datatype(img{1})); %initialisation
 
 tt1=tic;
 for tz=1:tilenum(3)
@@ -77,16 +80,23 @@ for tz=1:tilenum(3)
             zs=(tz-1)*tilesize(3);
             ze=min((tz)*tilesize(3)+aborder(3)-1,imgsize(3)-1); %Aurelie
             fprintf('\n\nTiled Processing: Tile [%d,%d,%d] ([%d,%d,%d]), from (%d,%d,%d) to (%d,%d,%d)\n',tx,ty,tz,tilenum,xs,ys,zs,xe,ye,ze);
-            mytile=img(xs:xe,ys:ye,zs:ze); %Cut a tile. Size is as defined in input, except for the last tile.
+            if iscell(img)
+                mytile = cell(1,length(img));
+                for n=1:length(img)
+                    mytile{n}=img{n}(xs:xe,ys:ye,zs:ze); %Cut a tile. Size is as defined in input, except for the last tile.
+                end
+            else
+                mytile=img(xs:xe,ys:ye,zs:ze); %Cut a tile. Size is as defined in input, except for the last tile.
+            end
             if extraOffset~=0
                 mytile=mytile+extraOffset;
             end
             if(CLEM_GG)
-                RefImgX = RefX(xs:xe,ys:ye,zs:ze); %fengjiao 25.05.2020
-                RefImgY = RefY(xs:xe,ys:ye,zs:ze);
+                myarglist{5}{ri-1,2}{2} = RefX(xs:xe,ys:ye,zs:ze); % fengjiao 11.08.2020
+                myarglist{5}{ri-1,2}{3} = RefY(xs:xe,ys:ye,zs:ze); % update the input reference image
             end
             if(CLEM_IG)
-                RefImgX = RefX(xs:xe,ys:ye,zs:ze); %fengjiao 25.05.2020
+                myarglist{5}{ri-1,2}{2} = RefX(xs:xe,ys:ye,zs:ze); %fengjiao 25.05.2020
             end
             result=aFunction(mytile,myarglist{:}); %Perform the function on each tile
             disableCuda();

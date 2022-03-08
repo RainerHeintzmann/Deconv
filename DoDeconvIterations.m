@@ -267,7 +267,7 @@ switch Update
     otherwise  % The Update parameter will be used as the method for the minFunc optimisation
     % using Polak Ribiere for update in the cg case
 %options=struct('DerivativeCheck','off','Method','cg','Display','on','notify',1,'TolX',1e-39,'TolFun',10^-39,'MaxIter',NumIter); 
-%options=struct('DerivativeCheck','off','Method','lbfgs','Display','on','verboseI',1,'notify',1,'optTol',1e-10,'progTol',1e-10,'TolX',1e-10,'TolFun',10^-29,'MaxIter',NumIter,'LS_init',3,'LS',3,'t0',1e5); 
+%v 
 %options=struct('DerivativeCheck','off','Method','newton0','Display','full','verboseI',1,'notify',1,'TolX',1e-10,'TolFun',10^-29,'MaxIter',NumIter,'LS_init',3,'LS',3,'t0',1e5); 
 %options=struct('DerivativeCheck','off','Method','lbfgs','Display','full','verboseI',1,'notify',1,'TolX',1e-10,'TolFun',10^-29,'MaxIter',NumIter,'LS_init',3,'LS',3,'t0',1e5); 
 %options=struct('DerivativeCheck','off','Method','lbfgs','Display','verbose','notify',1,'optTol',1e-10,'progTol',1e-10,'MaxIter',NumIter,'LS_type',1,'LS_interp',1,'LS_init',4,'t0',1e5); 
@@ -308,6 +308,8 @@ global RefObject_SAbs; % For checking the progress to the ground truth during it
 global RefObject_SSQ2;  % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_SAbs2; % For checking the progress to the ground truth during iterations.  RH 2017
 global RefObject_NCC; % normalized Cross correlation
+
+i = length(RefObject_SSQ)+1;  % account for previous iterations etc.
 
 drawnow(); % also needed for the DoStop user interaction in old Matlab systems
 stopped=0;
@@ -356,7 +358,7 @@ if ~isempty(RefObject) && RefSize >= 1 && RefSize == prod(size(x))
     end
 end
 
-if ~isempty(ProgressLossFig) && ~isempty(ProgressLossFig)
+if ~isempty(ProgressLossFig)
         if isempty(NormFac)
             myFactor=1.0 / prod(size(Recons));
         else
