@@ -1,0 +1,97 @@
+L2_Error_Norm_Deconvolution3D.fig
+psf.ics
+psfWF.ics
+DeconvolutionTests/DeconUnconstrained.ics
+DeconvolutionTests/FwdProj.ics
+DeconvolutionTests/nimg.ics
+Old/convertGradToVec (pi96doc v1).m
+Old/convertGradToVec.m
+Old/convertPSFToPupilVec.m
+Old/convertPupilVecToOTF.m
+Old/convertVecToIllu (pi96doc v1).m
+Old/convertVecToIllu.m
+Old/DeconvTest.asv
+Old/DeconvTest.m
+Old/DeconvTestMask.m
+Old/DoDeconvIterations (pi96doc v1).m
+Old/DoDeconvIterations.m
+Old/GenericDeconvolution (2).m
+Old/GenericDeconvolution (3).m
+Old/GenericDeconvolution (4).m
+Old/GenericDeconvolution (5).m
+Old/GenericDeconvolution (6).m
+Old/GenericDeconvolution (pi96doc v1).m
+Old/GenericDeconvolution_old.m
+Old/GenericDeconvolution.m
+Old/GenericErrorAndDeriv (2).m
+Old/GenericErrorAndDeriv (3).m
+Old/GenericErrorAndDeriv (4).m
+Old/GenericErrorAndDeriv (pi96doc v1).m
+Old/GenericErrorAndDeriv.m
+Old/RegularizeAR_old.m
+Old/RegularizeAR_old2.m
+Old/RegularizeAR.m
+Old/RegularizeGR (2).m
+Old/RegularizeGR.m
+Old/RegularizeGS.m
+Old/RegularizeTV.m
+Old/squeezeIllu.m
+Old/TestGradients.m
+Old/TestHessian.m
+Old/TiledDeconv (2).m
+Old/TiledDeconv.m
+OtherSoftware/Hessian-Schatten-3D.zip
+OtherSoftware/PoissonHessReg.zip
+OtherSoftware/Structure_Tensor_Total_Variation.zip
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/denoiseHS3D.m
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/process_options.m
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/mex/eigenRoots.c
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/mex/eigenRoots.m
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/mex/eigenRoots.mexmaci64
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/mex/matLib3D.h
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/mex/projectSpMat3x3.c
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/mex/projectSpMat3x3.m
+OtherSoftware/Hessian-Schatten-3D/Hessian-Schatten-3D/mex/projectSpMat3x3.mexmaci64
+OtherSoftware/PoissonHessReg/PoissonHessReg/demo_data.mat
+OtherSoftware/PoissonHessReg/PoissonHessReg/readme.rtf
+OtherSoftware/PoissonHessReg/PoissonHessReg/run_demo.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/Auxiliary_functions/process_options.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/Auxiliary_functions/psnr.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/Auxiliary_functions/shift.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/Auxiliary_functions/shiftAdj.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/headers/epph.h
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/headers/matLib2D.h
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/compile_mex.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/projectSpMat2x2.c
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/projectSpMat2x2.cpp
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/projectSpMat2x2.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/projectSpMat2x2.mexmaci64
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/projectSpMat2x2.mexw64
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/proxSpMat2x2.c
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/proxSpMat2x2.cpp
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/proxSpMat2x2.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/mexFunctions/source/proxSpMat2x2.mexmaci64
+OtherSoftware/PoissonHessReg/PoissonHessReg/Optimization/denoiseHS.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/Optimization/HSPIRAL1.m
+OtherSoftware/PoissonHessReg/PoissonHessReg/Optimization/HSPIRAL2.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/office_3.jpg
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/readme.txt
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/run_demo.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/auxiliary_functions/process_options.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/headers/epph.h
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/headers/matLib2xNc.h
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/src/compile_mex.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/src/projectSpMat2xNc.c
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/src/projectSpMat2xNc.cpp
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/src/projectSpMat2xNc.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/src/projectSpMat2xNc.mexa64
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/mex/src/projectSpMat2xNc.mexmaci64
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/AdjJacobianOp2D.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/Adjshift.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/BoxProjection.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/GradOp2D.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/JacobianOp2D.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/shift.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/shiftAdjST.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/Operators/StructureTensorOp2D.m
+OtherSoftware/Structure_Tensor_Total_Variation/Structure_Tensor_Total_Variation/proximal/proxSTV.m
