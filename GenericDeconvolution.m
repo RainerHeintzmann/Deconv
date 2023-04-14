@@ -2,7 +2,7 @@
 % image: Image to Deconvolve
 % psf: Point spread function to deconvolve with
 % NumIter(1): Iterations to perform. Optionally the subiterations for initial Object iterations (2) and successive object (3), illumination (4) and psf (5) iterations  can be given.
-% Method: One of 'LeastSqr', 'WeightedLeastSqr', 'Poisson' or 'GaussianWithReadnoise', 'Empty' defining the norm of the data-simulation agreement to optimize. 'Empty' always returns zero (useful for gradient tests of the regularizers)
+% Method: One of 'LeastSqr', 'WeightedLeastSqr', 'Poisson' or 'GaussianWithReadnoise', 'Anscombe', 'Empty' defining the norm of the data-simulation agreement to optimize. 'Empty' always returns zero (useful for gradient tests of the regularizers)
 % 
 % Update: Default: [] uses 'lbfgs', This describes the minimization algorithm (update scheme) to use. You can use all the ones that minFunc allows, but in addition also 'RL' for
 % RichardsonLucy multiplicative (EM) Algorithm, or 'RLL' for a Wolfe line search along the Richardson Lucy update direction
@@ -341,7 +341,7 @@ if norm(borderSizes) > 0 || any(subSampling~=1)
             end
         end
         if norm(OrigSize-NewDataSize) > 0 || (norm(OrigSize-NewSize))
-            fprintf('Border region requested, expanding data size from [');
+            fprintf('Border region requested, expanding reconstruction size from [');
             fprintf('%g,',OrigSize);
             fprintf('] to [');
             fprintf('%g,',NewDataSize);
@@ -503,18 +503,18 @@ mymean=mysum/length(myim);  % Force it to be real
             startVec=newim(svecsize);
         end
         if RegObj(12,1) > mymean
-            msgbox('The background estimate is bigger than the mean value of the data. Something is wrong here! Aborting.');
-            res=[];
-            resIllu=[];
-            resPSF=[];
-            return
+            msgbox('The background estimate is bigger than the mean value of the data. Something is wrong here! Make sure that the background estimate is realistic.');
+            %res=[];
+            %resIllu=[];
+            %resPSF=[];
+            %return
         end
         if RegObj(12,1) ~= 0
-            if RegIllu(12,1) == 0
+            if Update(1)=='B' && length(NumIter) > 3 && NumIter(4) > 0
                fprintf('WARNING: No Background was given for illumination iterations but only for object iterations. Using Illumination background from Object background.\n');
                RegIllu(12,1) = RegObj(12,1);
             end
-            if RegOTF(12,1) == 0
+            if Update(1)=='B' && length(NumIter) > 4 && NumIter(5) > 0
                fprintf('WARNING: No Background was given for PSF iterations but only for object iterations. Using Illumination background from Object background.\n');
                RegOTF(12,1) = RegObj(12,1);
             end
@@ -616,7 +616,11 @@ if Update(1)~='B'   % not blind
             savedRecon=aRecon;
             [val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
             aRecon=savedRecon; clear savedRecon;
-            NormFac=1/(norm(agrad)/numel(agrad))/1e6; % /1e6
+            if norm(agrad) ~= 0
+                NormFac=1/(norm(agrad)/numel(agrad))/1e6; % /1e6
+            else
+                NormFac=1;
+            end
         %[val,agrad]=GenericErrorAndDeriv(startVec);  % is used to determine a useful value of the normalisation
         %aNorm=1/(norm(agrad)/numel(agrad));
         %NormFac=aNorm;
@@ -658,7 +662,7 @@ if Update(1)~='B'   % not blind
                     otfrep = otfrepOld;
                     res = res/mean(res)*mean(meas);
                 case 5  % Measured data (not recommended)
-                    res=meas;
+                    res=meas + 0.0; % make a copy due to some Cuda problem
                     res(res < 0.1) = 0.1;
                 otherwise
                     error('unknown init value choice')

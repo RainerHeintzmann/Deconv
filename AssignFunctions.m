@@ -36,6 +36,8 @@ elseif RegularisationParameters(10,1) == 3
     CalcResiduum=@ResidGaussianWithReadnoise;
 elseif RegularisationParameters(10,1) == 4
     CalcResiduum=@ResidZero;
+elseif RegularisationParameters(10,1) == 5
+    CalcResiduum=@ResidAnscombe;
 else
     error('Unknown residuum calculation method');
 end

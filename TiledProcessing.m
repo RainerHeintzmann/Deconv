@@ -60,6 +60,22 @@ else
     aborder=bordersize;
 end
 
+if any(tilesize>=imgsize)
+    fprintf('Warning: Tilesize bigger or equal to image size along a dimension. Removing border in this direction\n')
+    aborder(tilesize>=imgsize) = 0;
+    fprintf('New border is ');
+    fprintf('%d, ',aborder);
+    fprintf('\n');
+end
+
+if any(aborder>tilesize/2)
+    fprintf('Warning: Tile overlap too large along a dimension. Limiting border to 50 percent.\n')
+    aborder(aborder>tilesize/2)=floor(tilesize(aborder>tilesize/2)/2);  % limits the border to half the tilesize. floor is important to avoid a negative sized middle part in the cat command.
+    fprintf('New border is ');
+    fprintf('%d, ',aborder);
+    fprintf('\n');
+end
+
 tilesize=tilesize-aborder; %for the overlap
 tilenum=ceil((imgsize-aborder)./(tilesize)); %number of tiles. Aurelie
 aborder(tilenum<=1) = 0;  % Fix! R.H.
